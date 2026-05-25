@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alerta Bairro</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+</head>
+
+<body>
+
+<div id="loginPage" class="modal-login" style="display: none;">
+  <div class="modal-conteudo">
+    <span class="fechar-modal" onclick="fecharModalLogin()">&times;</span>
+    <h2 style="text-align: center; margin-bottom: 20px; color: #0F172A;">🚨 Alerta Bairro</h2>
+    <input type="email" id="email" placeholder="Seu E-mail" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 6px;">
+    <input type="password" id="senha" placeholder="Sua Senha" style="width: 100%; padding: 10px; margin-bottom: 5px; border: 1px solid #ccc; border-radius: 6px;">
+    <div style="text-align: left; margin-top: 8px; margin-bottom: 15px;">
+      <input type="checkbox" id="mostrar" onclick="mostrarOcultarSenhaLogin()" style="width: auto; margin-right: 5px; cursor: pointer;">
+      <label for="mostrar" style="font-size: 12px; color: #6c757d; cursor: pointer;">Mostrar senha</label>
+    </div>
+    <button class="salvar" onclick="login()" style="width: 100%; margin-bottom: 8px;">Entrar</button>
+    <button class="salvar" style="background: #495057; width: 100%; margin-bottom: 15px;" onclick="criarConta()">Criar Nova Conta</button>
+    <p style="text-align: center; margin-bottom: 15px;">
+      <a href="#" onclick="recuperarSenha()" style="color: #dc3545; text-decoration: none; font-size: 12px; font-weight: 600;">Esqueceu a senha?</a>
+    </p>
+    <hr style="margin: 15px 0; border: 0; border-top: 1px solid #e9ecef;">
+    <button class="salvar" style="background: #4285F4; margin-top: 0; width: 100%;" onclick="loginComGoogle()">
+      Entrar com o Google
+    </button>
+  </div>
+</div>
+<div id="sistema">
+
+  <header style="display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; background: #0A2540; height: 70px;">
+    <div class="logo-container" style="display: flex; align-items: center; gap: 10px;">
+      <img src="logo-app.jpeg" alt="Alerta Bairro Logo" class="app-logo" style="height: 45px; width: 45px; border-radius: 8px;">
+      <span class="logo-texto" style="color: white; font-weight: 700; font-size: 20px;">Alerta Bairro</span>
+    </div>
+
+    <nav style="display: flex; align-items: center; flex: 1; justify-content: flex-end; gap: 20px;">
+      <button id="btnNavLogin" onclick="abrirModalLogin()" class="btn-login-dinamico" style="margin-right: auto; margin-left: 60px;">
+        🔐 Entrar / Cadastrar
+      </button>
+      
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <button onclick="mostrarPagina('inicio')" style="background: transparent; border: none; color: white; cursor: pointer; font-weight: 500; padding: 8px 12px;">🏠 Boas-vindas</button>
+        <button onclick="mostrarPagina('mapaPagina')" style="background: transparent; border: none; color: white; cursor: pointer; font-weight: 500; padding: 8px 12px;">🗺️ Quadro Branco</button>
+      </div>
+
+      <button id="btnNavPerfil" onclick="toggleMenuPerfil(event)" style="display: none; font-weight: 600; background: #E5B842; color: #0A2540; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer;">👤 Perfil</button>
+    </nav>
+  </header>
+
+<div id="menuFlutuantePerfil" class="gemini-menu-perfil">
+  <button class="btn-upgrade-gemini">✨ Fazer upgrade pro Premium</button>
+  
+  <div class="gemini-perfil-user-info">
+    <img id="perfilFoto" src="https://via.placeholder.com/80" alt="Foto de Perfil" class="avatar-menu-usuario">
+    <div class="gemini-perfil-user-text">
+      <h4 id="perfilNome">Nome do Usuário</h4>
+      <p id="perfilEmail">usuario@email.com</p>
+    </div>
+  </div>
+
+  <hr class="gemini-divisor">
+
+  <ul id="menuPainelPrincipal" class="gemini-menu-opcoes">
+    <li onclick="alert('Funcionalidade de Configurações da Conta em desenvolvimento.')">⚙️ Configurações da conta</li>
+    <li onclick="abrirSubmenuNotificacoes()">🔔 Preferências de notificações</li>
+    <li onclick="alert('Seus dados estão protegidos sob criptografia de ponta a ponta.')">🔒 Privacidade e segurança</li>
+    <li onclick="alert('Plataforma Comunitária v2.2.0 - 2026')">ℹ️ Sobre o Alerta Bairro</li>
+    <hr class="gemini-divisor">
+    <li onclick="sair()" class="opcao-sair">🚪 Sair da conta</li>
+  </ul>
+
+  <div id="submenuNotificacoes" style="display: none;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+      <span onclick="fecharSubmenuNotificacoes()" style="cursor: pointer; color: #9aa0a6; font-size: 12px; font-weight: bold;">← Voltar</span>
+      <span style="color: #e3e3e3; font-size: 12px; font-weight: bold;">Notificações Push</span>
+    </div>
+    
+    <div style="display: flex; align-items: center; justify-content: space-between; background: #2d2f31; padding: 10px; border-radius: 8px; margin-top: 8px;">
+      <span style="color: #e3e3e3; font-size: 12px;">Alertas de Proximidade (500m)</span>
+      <label class="switch">
+        <input type="checkbox" id="switchPushNotificacao" checked onchange="alternarPreferenciaPush()">
+        <span class="slider round"></span>
+      </label>
+    </div>
+    <p style="font-size: 10px; color: #9aa0a6; margin-top: 6px; line-height: 1.3;">Quando ativo, o sistema operacional emitirá um banner externo na tela do seu computador sempre que um incidente perigoso ocorrer perto do seu radar.</p>
+  </div>
+</div>
+
+<div class="container">
+  
+  <div id="inicio" class="pagina landing-page">
+    <div class="landing-content">
+      
+      <section class="hero-section">
+        <div class="hero-text">
+          <h2>Transforme a segurança do seu bairro com colaboração em tempo real</h2>
+          <p>O Alerta Bairro é uma plataforma intuitiva baseada em quadros brancos digitais que ajuda comunidades a mapear incidentes, rastrear perímetros via satélite e proteger quem você ama de forma integrada.</p>
+          <button class="btn-landing-cta" onclick="mostrarPagina('mapaPagina')">Começar a monitorar agora →</button>
+        </div>
+        <div class="hero-image-placeholder">
+          <span>[Espaço para Imagem: Preview do Quadro Branco / Dashboard]</span>
+        </div>
+      </section>
+
+      <section class="stats-section">
+        <div class="stat-card">
+          <h3>+500m</h3>
+          <p>Raio de Cobertura do Sonar</p>
+        </div>
+        <div class="stat-card">
+          <h3>100%</h3>
+          <p>Colaborativo e em Tempo Real</p>
+        </div>
+        <div class="stat-card">
+          <h3>Grátis</h3>
+          <p>Para Comunidades e Moradores</p>
+        </div>
+      </section>
+
+      <section class="features-section">
+        <div class="features-header">
+          <h2>Por que usar o Alerta Bairro?</h2>
+          <p>Tudo o que você precisa para agir de forma preventiva e informada contra incidentes locais.</p>
+        </div>
+
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-image-placeholder">
+              <span>[Imagem: Interface do Mapa]</span>
+            </div>
+            <h3>Mapeamento Interativo</h3>
+            <p>Adicione stickies de alertas diretamente no mapa clicando na rua do incidente. Identifique pontos críticos de roubos, alagamentos ou falta de luz em segundos.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-image-placeholder">
+              <span>[Imagem: Ativação do Sonar]</span>
+            </div>
+            <h3>Sonar Comunitário Ativo</h3>
+            <p>Ligue o GPS e deixe a plataforma monitorar o seu perímetro. Se um incidente for registrado em um raio de 500 metros, seu dispositivo emitirá um alerta imediato.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-image-placeholder">
+              <span>[Imagem: Linha do Tempo/Feed]</span>
+            </div>
+            <h3>Feed de Atividades Recentes</h3>
+            <p>Visualize as ocorrências ordenadas de maneira cronológica através de um painel escuro minimalista, com filtros por cores específicos para cada tipo de risco.</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="container-carrosseis">
+        
+        <div class="secao-carrossel">
+          <div class="topo-carrossel">
+            <h3>👥 Alertas Comunitários Recentes</h3>
+            <div class="botoes-navegacao">
+              <button onclick="scrollCarrossel('carrosselComunitario', -1)">❮</button>
+              <button onclick="scrollCarrossel('carrosselComunitario', 1)">❯</button>
+            </div>
+          </div>
+          <div class="mascara-fade">
+            <div id="carrosselComunitario" class="elemento-carrossel">
+              </div>
+          </div>
+        </div>
+
+        <div class="secao-carrossel">
+          <div class="topo-carrossel">
+            <h3>🚨 Alertas Oficiais (Polícia / Defesa Civil)</h3>
+            <div class="botoes-navegacao">
+              <button disabled>❮</button>
+              <button disabled>❯</button>
+            </div>
+          </div>
+          <div class="mascara-fade">
+            <div class="elemento-carrossel">
+              <div class="card-vazio">
+                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                <p>Nenhum alerta de autoridade emitido na região</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="secao-carrossel">
+          <div class="topo-carrossel">
+            <h3>🚧 Interdições e Obras Públicas</h3>
+            <div class="botoes-navegacao">
+              <button disabled>❮</button>
+              <button disabled>❯</button>
+            </div>
+          </div>
+          <div class="mascara-fade">
+            <div class="elemento-carrossel">
+              <div class="card-vazio">
+                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                <p>Nenhuma via interditada no momento</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <footer class="landing-footer">
+        <p>© 2026 Alerta Bairro. Desenvolvido para fortalecer a segurança comunitária.</p>
+      </footer>
+
+    </div>
+  </div>
+
+  <div id="mapaPagina" class="pagina">
+    <div class="container-filtros-mapa" style="padding: 10px; display: flex; gap: 8px; background: #fff; border-bottom: 1px solid #e2e8f0; position: relative; z-index: 1001;">
+      <button class="btn-filtro ativo" onclick="filtrarAlertasPorTipo('todos', this)" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 12px; font-weight: 500; cursor: pointer;">🔍 Todos</button>
+      <button class="btn-filtro" onclick="filtrarAlertasPorTipo('roubo', this)" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 12px; font-weight: 500; cursor: pointer;">🛑 Roubos</button>
+      <button class="btn-filtro" onclick="filtrarAlertasPorTipo('luz', this)" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 12px; font-weight: 500; cursor: pointer;">💡 Falta de Luz</button>
+      <button class="btn-filtro" onclick="filtrarAlertasPorTipo('alagamento', this)" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 12px; font-weight: 500; cursor: pointer;">🌊 Alagamentos</button>
+    </div>
+
+    <div id="mapa"></div>
+
+    <button id="btnCentralizar" onclick="centrarEmMim()" class="botao-mapa" title="Centralizar em Mim" disabled>
+        📍
+    </button>
+
+    <div class="caixa-gemini-alertas">
+      <h3>📢 Atividades Recentes</h3>
+      <div class="gemini-fade-container">
+        <div id="listaAlertas" class="gemini-scroll-conteudo">
+        </div>
+      </div>
+    </div>
+
+<div class="radar-flutuante-box">
+    <h3 style="font-size: 14px; font-weight:600; margin-bottom:10px; color:#495057;">📡 Sonar Comunitário</h3>
+    
+    <div id="statusRadar">
+        <h4 id="textoRadar" style="color:#495057;">Radar Desligado</h4>
+        <p id="detalheRadar">Ative o perímetro de rastreio de 500m.</p>
+    </div>
+    
+    <button id="btnRadar" onclick="iniciarRadar()">Ligar Sonar</button>
+
+    <div id="containerAlertasProximidade" style="margin-top: 10px; font-size: 12px;"></div>
+</div>
+
+<div id="figjamTools" class="figjam-tools" style="display:none;">
+    <button onclick="L.popup().setLatLng(mapa.getCenter()).setContent(popupContentBase).openOn(mapa);">🚨 Adicionar Alerta</button>
+</div>
+
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.11.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.11.1/firebase-auth-compat.js"></script>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="script.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,1252 @@
+/* --- RESET E VARIÁVEIS DE CORES REGIONAIS --- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+:root {
+  --azul-rio: #0A2540;          /* Azul profundo dos rios/céu */
+  --amarelo-areia: #E5B842;     /* Amarelo arenoso quente */
+  --vermelho-alerta: #D9383A;   /* Vermelho de destaque e emergência */
+  --cinza-detalhe: #E2E8F0;     /* Cinza sutil para bordas e fundos discretos */
+  --cinza-texto: #64748B;       /* Texto suave */
+  --branco-puro: #FFFFFF;
+}
+
+body {
+  background-color: #F8FAFC;
+  background-image: 
+    linear-gradient(var(--cinza-detalhe) 1px, transparent 1px),
+    linear-gradient(90deg, var(--cinza-detalhe) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: #0F172A;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden; /* Mantém o esqueleto travado, quem rola é apenas a landing page */
+}
+
+
+/* --- CABEÇALHO --- */
+header {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  color: #0F172A;
+  padding: 12px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--cinza-detalhe);
+  box-shadow: 0 1px 10px rgba(10, 37, 64, 0.03);
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 1000;
+}
+.app-logo {
+  height: 36px;       /* Mantém a logo em uma altura excelente para o menu */
+  width: auto;        /* Evita que a imagem distorça */
+  object-fit: contain;
+  border-radius: 8px; /* Dá uma leve arredondada nas bordas combinando com o design */
+  margin-right: 10px; /* Afasta ligeiramente do texto "Alerta Bairro" */
+}
+header h1 {
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--vermelho-alerta);
+  letter-spacing: -0.5px;
+}
+
+nav {
+  display: flex;
+  gap: 8px;
+}
+
+nav button {
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--azul-rio);
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+nav button:hover {
+  background: var(--cinza-detalhe);
+  color: var(--azul-rio);
+}
+
+/* --- JANELA SUSPENSA DE PERFIL --- */
+.gemini-menu-perfil {
+  display: none; 
+  position: fixed;
+  top: 60px;
+  right: 24px;
+  width: 290px;
+  background: #111827; 
+  border: 1px solid #1F2937;
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  z-index: 1010; 
+}
+
+.btn-upgrade-gemini {
+  width: 100%;
+  background: #1E3A8A; 
+  color: #BFDBFE;
+  border: none;
+  border-radius: 25px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 14px;
+  transition: background 0.2s;
+}
+.btn-upgrade-gemini:hover {
+  background: #1D4ED8;
+}
+
+.gemini-perfil-user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.avatar-menu-usuario {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--amarelo-areia);
+}
+
+.gemini-perfil-user-text h4 {
+  color: #F9FAFB;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.gemini-perfil-user-text p {
+  color: #9CA3AF;
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.gemini-divisor {
+  border: 0;
+  border-top: 1px solid #1F2937;
+  margin: 12px 0;
+}
+
+.gemini-menu-opcoes {
+  list-style: none;
+}
+
+.gemini-menu-opcoes li {
+  color: #F9FAFB;
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.gemini-menu-opcoes li:hover {
+  background: #1F2937;
+}
+
+.gemini-menu-opcoes li.opcao-sair {
+  color: #FCA5A5; 
+}
+.gemini-menu-opcoes li.opcao-sair:hover {
+  background: rgba(252, 165, 165, 0.1);
+}
+
+/* --- COMPONENTE DE BOTÃO INTERRUPTOR (SWITCH/TOGGLE) --- */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 20px;
+}
+.switch input { 
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #495057;
+  transition: .3s;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s;
+}
+input:checked + .slider {
+  background-color: #28a745;
+}
+input:focus + .slider {
+  box-shadow: 0 0 1px #28a745;
+}
+input:checked + .slider:before {
+  transform: translateX(14px);
+}
+.slider.round {
+  border-radius: 20px;
+}
+.slider.round:before {
+  border-radius: 50%;
+}
+
+/* --- INTERFACE E ESTRUTURA GERAL --- */
+.container {
+  width: 100vw;
+  height: calc(100vh - 61px); 
+  margin-top: 61px;
+  position: relative;
+}
+
+.pagina {
+  display: none;
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.ativa {
+  display: block;
+}
+
+/* --- LANDING PAGE DE APRESENTAÇÃO (BOAS-VINDAS) --- */
+.landing-page {
+  background: var(--branco-puro);
+  height: calc(100vh - 61px);
+  overflow-y: auto !important; 
+  position: relative;
+  z-index: 10;
+}
+
+.landing-content {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 50px 24px;
+}
+
+.hero-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 50px;
+  padding: 40px 0;
+}
+
+.hero-text {
+  flex: 1;
+}
+
+.hero-text h2 {
+  font-size: 38px;
+  font-weight: 800;
+  color: var(--azul-rio);
+  line-height: 1.15;
+  margin-bottom: 20px;
+}
+
+.hero-text p {
+  font-size: 16px;
+  color: var(--cinza-texto);
+  line-height: 1.6;
+  margin-bottom: 30px;
+}
+
+.btn-landing-cta {
+  background: var(--vermelho-alerta);
+  color: var(--branco-puro);
+  border: none;
+  padding: 16px 32px;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(217, 56, 58, 0.3);
+  transition: all 0.25s ease;
+}
+
+.btn-landing-cta:hover {
+  background: #B9292B;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(217, 56, 58, 0.4);
+}
+
+.hero-image-placeholder {
+  flex: 1;
+  height: 340px;
+  background: var(--azul-rio);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--amarelo-areia);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  padding: 24px;
+  box-shadow: 0 10px 30px rgba(10, 37, 64, 0.15);
+  border: 2px solid var(--amarelo-areia);
+}
+
+.stats-section {
+  display: flex;
+  justify-content: space-around;
+  background: #F8FAFC;
+  border-radius: 20px;
+  padding: 35px;
+  margin: 50px 0;
+  border: 1px solid var(--cinza-detalhe);
+}
+
+.stat-card {
+  text-align: center;
+}
+
+.stat-card h3 {
+  font-size: 32px;
+  color: var(--vermelho-alerta);
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.stat-card p {
+  font-size: 13px;
+  color: var(--azul-rio);
+  font-weight: 600;
+}
+
+.features-section {
+  padding: 40px 0;
+}
+
+.features-header {
+  text-align: center;
+  margin-bottom: 50px;
+}
+
+.features-header h2 {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--azul-rio);
+  margin-bottom: 12px;
+}
+
+.features-header p {
+  font-size: 15px;
+  color: var(--cinza-texto);
+}
+
+.features-grid {
+  display: flex;
+  gap: 24px;
+}
+
+.feature-card {
+  flex: 1;
+  background: var(--branco-puro);
+  border: 1px solid var(--cinza-detalhe);
+  border-radius: 20px;
+  padding: 28px;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.01);
+}
+
+.feature-card:hover {
+  box-shadow: 0 12px 30px rgba(10, 37, 64, 0.06);
+  transform: translateY(-4px);
+  border-color: var(--amarelo-areia);
+}
+
+.feature-image-placeholder {
+  height: 150px;
+  background: #F1F5F9;
+  border: 1px solid var(--cinza-detalhe);
+  border-radius: 12px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--azul-rio);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.feature-card h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--azul-rio);
+  margin-bottom: 12px;
+}
+
+.feature-card p {
+  font-size: 14px;
+  color: var(--cinza-texto);
+  line-height: 1.6;
+}
+
+/* --- ESTILO DOS CARROSSÉIS (NA LANDING PAGE) --- */
+.container-carrosseis {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  padding: 40px 30px;
+  background: #F8FAFC;
+  border-radius: 24px;
+  margin-top: 40px;
+  border: 1px solid var(--cinza-detalhe);
+}
+
+.secao-carrossel {
+  display: flex;
+  flex-direction: column;
+}
+
+.topo-carrossel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 0 10px;
+}
+
+.topo-carrossel h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--azul-rio);
+}
+
+.botoes-navegacao button {
+  background: var(--branco-puro);
+  border: 1px solid var(--cinza-detalhe);
+  border-radius: 8px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-weight: bold;
+  color: var(--azul-rio);
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.botoes-navegacao button:hover:not(:disabled) {
+  background: var(--azul-rio);
+  color: var(--branco-puro);
+  border-color: var(--azul-rio);
+}
+
+.botoes-navegacao button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.mascara-fade {
+  position: relative;
+  overflow: hidden;
+}
+
+.mascara-fade::before,
+.mascara-fade::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.mascara-fade::before {
+  left: 0;
+  background: linear-gradient(to right, #F8FAFC, transparent);
+}
+
+.mascara-fade::after {
+  right: 0;
+  background: linear-gradient(to left, #F8FAFC, transparent);
+}
+
+.elemento-carrossel {
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  padding: 15px 40px;
+}
+
+.elemento-carrossel::-webkit-scrollbar {
+  display: none;
+}
+.elemento-carrossel {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Cards dos Carrosséis */
+.card-alerta-home {
+  flex: 0 0 310px;
+  background: var(--branco-puro);
+  border: 1px solid var(--cinza-detalhe);
+  border-top: 4px solid var(--azul-rio); 
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(10, 37, 64, 0.04);
+  padding: 20px;
+  display: flex;
+  flex-direction: column; 
+  gap: 12px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card-alerta-home:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(10, 37, 64, 0.08);
+}
+
+.icone-alerta-home {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  background: #F1F5F9;
+  padding: 6px;
+  border-radius: 8px;
+}
+
+.info-alerta-home h4 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--azul-rio);
+}
+
+.info-alerta-home p {
+  margin: 6px 0;
+  font-size: 0.88rem;
+  color: var(--cinza-texto);
+  line-height: 1.4;
+}
+
+.info-alerta-home small {
+  color: var(--amarelo-areia);
+  font-weight: 600;
+  font-size: 0.8rem;
+  display: inline-block;
+  margin-top: 4px;
+}
+
+.card-vazio {
+  width: 100%;
+  background: #F1F5F9;
+  border: 2px dashed var(--cinza-detalhe);
+  border-radius: 14px;
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--cinza-texto);
+}
+
+.card-vazio svg {
+  width: 32px;
+  height: 32px;
+  fill: var(--cinza-texto);
+}
+
+.landing-footer {
+  text-align: center;
+  padding: 30px 0;
+  border-top: 1px solid var(--cinza-detalhe);
+  margin-top: 50px;
+  color: var(--cinza-texto);
+  font-size: 13px;
+}
+
+/* --- TELA DO MAPA PAGINA E SEUS FILHOS --- */
+#mapaPagina {
+  margin: 0 !important;
+  padding: 0 !important;
+  position: fixed; /* Mude de absolute para fixed para garantir que o mapa trave na tela */
+  top: 70px; 
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(100vh - 70px); /* Garante que ocupa exatamente o resto da tela */
+}
+#mapa {
+  height: 100vh; /* Faz o mapa ocupar a tela toda */
+  width: 100%;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: block;
+}
+
+/* --- REPOSICIONAMENTO DO RADAR GRUDADO NA DIREITA DO MAPA --- */
+.radar-flutuante-box {
+  /* Posicionamento fixo no canto */
+  position: absolute !important;
+  top: 80px !important;
+  right: 20px !important;
+  z-index: 1000 !important;
+
+  /* Estilo do Card (O que você pediu: Fundo e aparência) */
+  background-color: #ffffff !important; /* Cor de fundo branca */
+  padding: 20px !important;            /* Espaço interno */
+  border-radius: 12px !important;      /* Cantos arredondados */
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2) !important; /* Sombra para destacar */
+  border: 1px solid #e0e0e0 !important; /* Borda leve */
+  
+  /* Largura fixa para manter o conteúdo organizado */
+  width: 250px !important;
+  box-sizing: border-box !important;
+}
+
+#statusRadar {
+  padding: 12px;
+  border-radius: 8px;
+  background: #f1f3f5;
+  margin-bottom: 12px;
+  transition: background 0.3s ease;
+}
+
+#textoRadar {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--azul-rio);
+}
+
+#detalheRadar {
+  font-size: 11px;
+  color: var(--cinza-texto);
+  line-height: 1.3;
+}
+
+#btnRadar {
+  padding: 10px;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+#btnRadar:hover {
+  background: #218838;
+}
+
+/* --- BOTÃO DE LOCALIZAÇÃO GRUDADO NA QUINA INFERIOR DIREITA DO MAPA --- */
+.botao-mapa {
+  position: absolute;
+  bottom: 5%;
+  right: calc(100% - 350px - 63% + 20px); /* Alinhamento cirúrgico com a quina inferior direita do mapa */
+  z-index: 1000;
+  background: #ffffff;
+  border: 1px solid #dee2e6;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: all 0.2s;
+}
+.botao-mapa:hover {
+  background: #f8f9fa;
+  transform: scale(1.05);
+}
+
+/* --- LISTAGEM MINIMALISTA DE ALERTAS (PAINEL ESCURO ESQUERDO) --- */
+.caixa-gemini-alertas {
+  position: absolute;
+  top: 2.5%;
+  left: 20px;
+  bottom: 2.5%; /* Acompanha o limite vertical inferior do mapa */
+  z-index: 998;
+  width: 310px;
+  background: #0B0F19;
+  border: 1px solid #1E293B;
+  border-radius: 24px;
+  padding: 20px 8px 20px 20px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+}
+
+.caixa-gemini-alertas h3 {
+  color: #E2E8F0;
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.gemini-fade-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 8%, black 88%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 8%, black 88%, transparent 100%);
+}
+
+.gemini-scroll-conteudo {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto !important;
+  padding-right: 8px;
+  padding-top: 5px;
+  padding-bottom: 20px;
+}
+
+.gemini-scroll-conteudo::-webkit-scrollbar {
+  width: 4px;
+}
+.gemini-scroll-conteudo::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+
+.alerta-card {
+  background: #1E293B;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+  transition: transform 0.2s, background 0.2s;
+}
+.alerta-card:hover {
+  transform: translateY(-1px);
+  background: #273549;
+}
+
+.alerta-header {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.alerta-roubo .alerta-header { color: #f28b82; }
+.alerta-falta-luz .alerta-header { color: #fdd663; }
+.alerta-alagamento .alerta-header { color: #8ab4f8; }
+.alerta-transito .alerta-header { color: #ffb74d; }
+.alerta-incendio .alerta-header { color: #ff6b6b; }
+.alerta-obra .alerta-header { color: #a855f7; }
+
+.alerta-bairro {
+  color: #9aa0a6 !important;
+  font-weight: 500;
+}
+.alerta-corpo {
+  font-size: 13px;
+  color: #F1F5F9;
+  line-height: 1.4;
+}
+
+/* --- BARRA SUSPENSA FIGJAM --- */
+.figjam-tools {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(5px);
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.05);
+  display: flex;
+  gap: 12px;
+  z-index: 101;
+}
+
+.figjam-tools button {
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.figjam-tools button:hover {
+  background: #f1f3f5;
+  transform: translateY(-1px);
+}
+
+/* --- MÓDULO DE LOGIN COMPLETAMENTE ARRUMADO --- */
+.login-box {
+  max-width: 380px;
+  margin: 120px auto;
+  background: white;
+  padding: 40px 30px;
+  border-radius: 16px;
+  border: 1px solid var(--cinza-detalhe);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+.login-box form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.login-box input[type="email"],
+.login-box input[type="password"] {
+  width: 100%;
+  padding: 12px 16px;
+  margin-top: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--cinza-detalhe);
+  font-size: 13px;
+  background: #F8FAFC;
+}
+.login-box input:focus {
+  outline: none;
+  border-color: var(--amarelo-areia);
+  background: white;
+}
+
+.login-box button,
+button.salvar,
+.btn-google {
+  width: 100%;
+  padding: 12px;
+  margin-top: 14px;
+  background: var(--vermelho-alerta);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.login-box button:hover,
+button.salvar:hover {
+  background: #B9292B;
+}
+
+.btn-google, 
+[onclick*="loginGoogle"] {
+  background: #fff !important;
+  color: #444 !important;
+  border: 1px solid var(--cinza-detalhe) !important;
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-google:hover {
+  background: #f1f3f5 !important;
+}
+
+.login-box a, 
+.login-box span {
+  font-size: 12px;
+  color: var(--cinza-texto);
+  text-decoration: none;
+  margin-top: 10px;
+  display: inline-block;
+}
+.login-box a:hover {
+  color: var(--azul-rio);
+}
+
+/* POPUPS LEAFLET */
+.leaflet-popup-content-wrapper {
+  background: #ffffff !important;
+  color: #212529 !important;
+  border-radius: 8px !important;
+}
+.leaflet-popup-tip {
+  background: #ffffff !important;
+}
+/* --- ESTILIZAÇÃO DOS FILTROS DE ALERTAS --- */
+.filtros-container {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  overflow-x: auto; /* Permite rolar de lado se a tela for pequena */
+  padding-bottom: 4px;
+}
+
+.filtros-container::-webkit-scrollbar {
+  height: 3px;
+}
+
+.filtros-container::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 2px;
+}
+
+.btn-filtro {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94A3B8;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.btn-filtro:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #F1F5F9;
+}
+
+/* Estado do botão selecionado */
+.btn-filtro.ativo {
+  background: var(--vermelho-alerta) !important;
+  color: #FFFFFF !important;
+  border-color: var(--vermelho-alerta) !important;
+  box-shadow: 0 2px 8px rgba(217, 56, 58, 0.3);
+}
+/* ===================================================
+   REGRAS DE RESPONSIVIDADE E COMPACTAÇÃO MOBILE (ESTILO UNINORTE)
+   =================================================== */
+@media (max-width: 768px) {
+  body {
+    overflow: hidden; 
+  }
+
+  /* --- CABEÇALHO COM MENU HAMBÚRGUER --- */
+  header {
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  header::after {
+    content: "☰";
+    font-size: 24px;
+    color: var(--azul-rio);
+    cursor: pointer;
+    display: block;
+    order: 3;
+  }
+
+  nav {
+    display: none; 
+    flex-direction: column;
+    position: absolute;
+    top: 55px;
+    right: 20px;
+    background: #ffffff;
+    border: 1px solid var(--cinza-detalhe);
+    border-radius: 12px;
+    padding: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    z-index: 1005;
+    gap: 4px;
+  }
+
+  nav.menu-aberto-mobile {
+    display: flex !important;
+  }
+
+  /* --- REESTRUTURAÇÃO DO MAPA --- */
+  #sistema {
+    margin-top: 55px;
+    height: calc(100vh - 55px);
+    position: relative;
+  }
+
+  #mapa {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 0px !important;
+  }
+
+  /* --- RADAR ICONOGRÁFICO COM BRILHO DINÂMICO --- */
+  .radar-flutuante-box {
+    position: absolute !important;
+    top: 15px !important;
+    right: 15px !important;
+    left: auto !important;
+    width: 50px !important;
+    height: 50px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    
+    /* Estado Padrão: Desligado/Apagado */
+    background: #F1F5F9 !important;
+    border: 2px solid #94A3B8 !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1) !important;
+    
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 999 !important;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .radar-flutuante-box * {
+    display: none !important; 
+  }
+
+  /* Ícone do Radar */
+  .radar-flutuante-box::before {
+    content: "📡"; 
+    font-size: 20px;
+    display: block !important;
+    opacity: 0.5; /* Efeito apagado por padrão */
+    transition: opacity 0.3s;
+  }
+
+  /* ESTADO ACESO/LIGADO COM BRILHO VERMELHO */
+  .radar-flutuante-box.radar-ligado {
+    background: #FFF5F5 !important;
+    border-color: var(--vermelho-alerta) !important;
+    /* Aplica o brilho vermelho suave ao redor do círculo */
+    box-shadow: 0 0 15px rgba(219, 56, 58, 0.7), 0 4px 10px rgba(0,0,0,0.1) !important;
+    animation: pulsarBrilhoRadar 2s infinite ease-in-out;
+  }
+
+  .radar-flutuante-box.radar-ligado::before {
+    opacity: 1; /* Acende o ícone */
+  }
+
+  /* Animação que faz o brilho vermelho pulsar levemente */
+  @keyframes pulsarBrilhoRadar {
+    0% { box-shadow: 0 0 8px rgba(219, 56, 58, 0.5); }
+    50% { box-shadow: 0 0 20px rgba(219, 56, 58, 0.9); }
+    100% { box-shadow: 0 0 8px rgba(219, 56, 58, 0.5); }
+  }
+
+  /* Botão de Localização */
+  .botao-mapa {
+    position: absolute !important;
+    bottom: 80px !important; 
+    right: 15px !important;
+    left: auto !important;
+    z-index: 999 !important;
+  }
+
+  /* --- PAINEL DE ALERTAS INFERIOR (BOTTOM SHEET) --- */
+  .caixa-gemini-alertas {
+    position: absolute !important;
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 55px !important; /* Altura da barra discreta na base */
+    background: #0B0F19 !important;
+    border-radius: 24px 24px 0 0 !important;
+    padding: 0 20px !important;
+    z-index: 1000 !important;
+    box-shadow: 0 -5px 25px rgba(0,0,0,0.4) !important;
+    cursor: pointer;
+    transition: height 0.4s cubic-bezier(0.25, 1, 0.5, 1) !important; 
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Três listras discretas de puxar */
+  .caixa-gemini-alertas::before {
+    content: "";
+    display: block;
+    width: 36px;
+    height: 4px;
+    background: #334155;
+    border-radius: 2px;
+    margin: 10px auto 8px auto;
+  }
+
+  .caixa-gemini-alertas h3 {
+    text-align: center;
+    font-size: 13px;
+    margin-bottom: 15px;
+    color: #94A3B8;
+  }
+
+  /* EXPANSÃO DO PAINEL */
+  .caixa-gemini-alertas.painel-aberto-mobile {
+    height: 65% !important; /* Sobe macio preenchendo a tela */
+    cursor: default;
+  }
+
+  /* Aplica o ícone do X de fechar dinamicamente no topo direito */
+  .caixa-gemini-alertas.painel-aberto-mobile::after {
+    content: "✕" !important;
+    position: absolute;
+    top: 15px;
+    right: 22px;
+    color: #64748B;
+    font-size: 16px;
+    font-weight: bold;
+    display: block !important; 
+    z-index: 1002;
+    cursor: pointer;
+  }
+
+  /* Scroll do container de alertas */
+  .gemini-fade-container {
+    flex: 1;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .painel-aberto-mobile .gemini-fade-container {
+    opacity: 1;
+    pointer-events: auto;
+    overflow-y: auto; /* Garante o scroll macio dos cards no celular */
+  }
+
+/* ... outras regras que já estavam no seu mobile ... */
+
+  /* --- AJUSTE DOS CARROSSÉIS NO MOBILE --- */
+  /* Mantém o carrossel visível na tela inicial, mas permite rolar se precisar */
+  .container-carrosseis {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 20px !important;
+    padding: 15px !important;
+    overflow-y: auto;
+  }
+
+  /* Se a página ativa for o mapa, aí sim ocultamos os carrosséis para dar espaço total */
+  #mapaPagina.ativa ~ .container-carrosseis,
+  #mapaPagina:has(.ativa) .container-carrosseis {
+    display: none !important;
+  }
+
+} /* <--- ESSA É A ÚLTIMA CHAVE QUE FECHA O @MEDIA DO MOBILE. COLOQUE O CÓDIGO LOGO ANTES DELA! */
+/* Estilo dinâmico inspirado na imagem_2026-05-25_135035765.png */
+.btn-login-dinamico {
+  background: #b62527;
+  color: white !important;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 12px; /* Bordas arredondadas e suaves */
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(182, 37, 39, 0.3); /* Sombra suave idêntica à imagem */
+}
+
+/* Animação interativa ao passar o mouse */
+.btn-login-dinamico:hover {
+  background: #d9383a;
+  transform: translateY(-2px); /* Pequeno efeito flutuante */
+  box-shadow: 0 6px 18px rgba(217, 56, 58, 0.5); /* Sombra expande dinamicamente */
+}
+
+/* Estrutura de Modal (Pop-up centralizado) */
+.modal-login {
+  position: fixed;
+  z-index: 9999;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background-color: rgba(0, 0, 0, 0.5); /* Escurece o fundo do site */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-conteudo {
+  background-color: #ffffff;
+  padding: 30px;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 400px;
+  position: relative;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+
+.fechar-modal {
+  position: absolute;
+  top: 12px; right: 20px;
+  font-size: 28px;
+  font-weight: bold;
+  color: #aaa;
+  cursor: pointer;
+}
+.fechar-modal:hover { color: #000; }
+#btnCentralizar {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000; /* Garante que fique por cima de tudo */
+  padding: 10px;
+  background: white;
+  border-radius: 50%;
+  border: none;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+/* Quando estiver desabilitado, ele ganha uma cor cinza */
+#btnCentralizar:disabled {
+  background: #e0e0e0;
+  cursor: not-allowed;
+}
+#btnCentralizar {
+    position: absolute;
+    bottom: 30px;
+    right: 30px;
+    z-index: 2000 !important; /* Maior que qualquer coisa no mapa */
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: none;
+    background: white;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    cursor: pointer;
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto !important; /* Garante que o clique funcione */
+}
+/* Garante que ele não pareça desabilitado */
+#btnCentralizar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

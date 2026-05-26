@@ -31,6 +31,10 @@
     </button>
   </div>
 </div>
+
+<!-- Toast container -->
+<div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
 <div id="sistema">
 
   <header style="display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; background: #0A2540; height: 70px;">
@@ -218,11 +222,17 @@
   </div>
 
   <div id="mapaPagina" class="pagina">
-    <div class="container-filtros-mapa" style="padding: 10px; display: flex; gap: 8px; background: #fff; border-bottom: 1px solid #e2e8f0; position: relative; z-index: 1001;">
-      <button class="btn-filtro ativo" onclick="filtrarAlertasPorTipo('todos', this)" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 12px; font-weight: 500; cursor: pointer;">🔍 Todos</button>
-      <button class="btn-filtro" onclick="filtrarAlertasPorTipo('roubo', this)" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 12px; font-weight: 500; cursor: pointer;">🛑 Roubos</button>
-      <button class="btn-filtro" onclick="filtrarAlertasPorTipo('luz', this)" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 12px; font-weight: 500; cursor: pointer;">💡 Falta de Luz</button>
-      <button class="btn-filtro" onclick="filtrarAlertasPorTipo('alagamento', this)" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 12px; font-weight: 500; cursor: pointer;">🌊 Alagamentos</button>
+    <div class="container-filtros-mapa" style="padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; background: #fff; border-bottom: 1px solid #e2e8f0; position: relative; z-index: 1001;">
+      <div style="display: flex; gap: 8px;">
+        <button class="btn-filtro ativo" onclick="filtrarAlertasPorTipo('todos', this)" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 12px; font-weight: 500; cursor: pointer;">🔍 Todos</button>
+        <button class="btn-filtro" onclick="filtrarAlertasPorTipo('roubo', this)" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 12px; font-weight: 500; cursor: pointer;">🛑 Roubos</button>
+        <button class="btn-filtro" onclick="filtrarAlertasPorTipo('luz', this)" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 12px; font-weight: 500; cursor: pointer;">💡 Falta de Luz</button>
+        <button class="btn-filtro" onclick="filtrarAlertasPorTipo('alagamento', this)" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 12px; font-weight: 500; cursor: pointer;">🌊 Alagamentos</button>
+      </div>
+
+      <button onclick="gatilhoBotaoAlertaExpandido()" style="background: #D9383A; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(217, 56, 58, 0.2); transition: all 0.2s;">
+        🚨 Criar Alerta Completo
+      </button>
     </div>
 
     <div id="mapa"></div>
@@ -239,23 +249,51 @@
       </div>
     </div>
 
-<div class="radar-flutuante-box">
-    <h3 style="font-size: 14px; font-weight:600; margin-bottom:10px; color:#495057;">📡 Sonar Comunitário</h3>
-    
-    <div id="statusRadar">
-        <h4 id="textoRadar" style="color:#495057;">Radar Desligado</h4>
-        <p id="detalheRadar">Ative o perímetro de rastreio de 500m.</p>
+    <div class="radar-flutuante-box">
+        <h3 style="font-size: 14px; font-weight:600; margin-bottom:10px; color:#495057;">📡 Sonar Comunitário</h3>
+        
+        <div id="statusRadar">
+            <h4 id="textoRadar" style="color:#495057;">Radar Desligado</h4>
+            <p id="detalheRadar">Ative o perímetro de rastreio de 500m.</p>
+        </div>
+        
+        <button id="btnRadar" onclick="iniciarRadar()">Ligar Sonar</button>
+
+        <div id="containerAlertasProximidade" style="margin-top: 10px; font-size: 12px;"></div>
     </div>
+
+  </div>
+</div>
+
+<div id="modalAlertaExpandido" class="modal-login" style="display: none;">
+  <div class="modal-conteudo" style="max-width: 500px; width: 90%;">
+    <span class="fechar-modal" onclick="fecharModalAlertaExpandido()">&times;</span>
+    <h2 style="text-align: center; margin-bottom: 20px; color: #0A2540;">📢 Novo Alerta Comunitário</h2>
     
-    <button id="btnRadar" onclick="iniciarRadar()">Ligar Sonar</button>
+    <label style="font-size: 12px; font-weight: 600; color: #495057; display: block; margin-bottom: 4px;">Tipo de Incidente:</label>
+    <select id="modalExpTipo" style="width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 6px;">
+      <option>Roubo</option>
+      <option>Falta de Luz</option>
+      <option>Alagamento</option>
+      <option>Acidente de Trânsito</option>
+    </select>
 
-    <div id="containerAlertasProximidade" style="margin-top: 10px; font-size: 12px;"></div>
-</div>
+    <label style="font-size: 12px; font-weight: 600; color: #495057; display: block; margin-bottom: 4px;">Localização aproximada (Bairro):</label>
+    <input type="text" id="modalExpBairro" placeholder="Ex: Centro, Cachoeirinha..." style="width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 6px;">
 
-<div id="figjamTools" class="figjam-tools" style="display:none;">
-    <button onclick="L.popup().setLatLng(mapa.getCenter()).setContent(popupContentBase).openOn(mapa);">🚨 Adicionar Alerta</button>
-</div>
+    <label style="font-size: 12px; font-weight: 600; color: #495057; display: block; margin-bottom: 4px;">Descrição detalhada da ocorrência:</label>
+    <textarea id="modalExpDescricao" rows="4" placeholder="Descreva o que aconteceu com o máximo de detalhes possível..." style="width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 6px; resize: vertical; font-family: sans-serif;"></textarea>
 
+    <label style="font-size: 12px; font-weight: 600; color: #495057; display: block; margin-bottom: 4px;">Anexar Evidências (Fotos / Documentos):</label>
+    <div style="border: 2px dashed #cbd5e1; padding: 15px; text-align: center; border-radius: 8px; margin-bottom: 20px; background: #f8fafc;">
+      <input type="file" id="modalExpArquivo" style="display: none;" onchange="mostrarPreviewArquivoModal(event)">
+      <button type="button" onclick="document.getElementById('modalExpArquivo').click()" style="background: #cbd5e1; border: none; padding: 6px 12px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: 600; color: #334155;">Escolher Arquivo</button>
+      <p id="nomeArquivoTexto" style="font-size: 11px; color: #64748b; margin-top: 6px;">Nenhum arquivo selecionado</p>
+      <img id="modalExpPreview" alt="preview" style="display:none; width:100%; max-height:220px; object-fit:cover; margin-top:10px; border-radius:8px;" />
+    </div>
+
+    <button class="salvar" onclick="salvarAlertaModalExpandido()" style="width: 100%; background: #D9383A; font-weight: 700;">Publicar Alerta na Comunidade</button>
+  </div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.11.1/firebase-app-compat.js"></script>

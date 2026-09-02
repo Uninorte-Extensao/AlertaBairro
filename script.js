@@ -33,44 +33,22 @@ let camadasRegiaoCalor = [];
 
 let latClick = null, lngClick = null; 
 let nivelAcessoUsuarioAtual = "comum"; 
-let ultimoPopup = null; // referência para o popup aberto atualmente
+let ultimoPopup = null; 
 
 const mapa = L.map('mapa', { attributionControl: false }).setView([-3.1190, -60.0217], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapa);
 
-// Aplicar animação genérica ao abrir qualquer popup do mapa
-mapa.on('popupopen', function(e) {
-  const popup = e.popup;
-  const cont = popup._container;
-  if (!cont) return;
-  // garantir classe de entrada
-  cont.classList.remove('leaflet-popup-custom-out');
-  cont.classList.add('leaflet-popup-content-wrapper');
-
-  // botão de fechar padrão
-  const btn = cont.querySelector('.leaflet-popup-close-button');
-  if (btn) {
-    // remover listeners duplicados usando clone
-    const newBtn = btn.cloneNode(true);
-    btn.parentNode.replaceChild(newBtn, btn);
-    newBtn.addEventListener('click', (ev) => { ev.stopPropagation(); closePopupAnimated(popup); });
-  }
-
-  // fechar com animação ao clicar fora (uma vez)
-  const fecharAoClicar = (ev) => {
-    if (cont.contains(ev.originalEvent && ev.originalEvent.target)) return;
-    closePopupAnimated(popup);
-  };
-  mapa.once('mousedown', fecharAoClicar);
-});
-
-// Configuração do formulário compacto interno do Leaflet
+// ===================================================
+// CONFIGURAÇÃO DO FORMULÁRIO DO MAPA
+// ===================================================
 function obterPopupFormularioHTML() {
+  // CORREÇÃO: Nome da variável padronizado para "opcoesSelect"
   let opcoesSelect = `
     <option>Roubo</option>
     <option>Falta de Luz</option>
     <option>Alagamento</option>
     <option>Acidente de Trânsito</option>
+    <option>Desaparecimento</option>
   `;
 
   if (nivelAcessoUsuarioAtual === "autoridade") {
@@ -96,12 +74,32 @@ function obterPopupFormularioHTML() {
     </div>`;
 }
 
-// Ouvinte isolado de cliques no chão do mapa para criar alertas rápidos
+// ===================================================
+// OUVINTE DE CLIQUE NO MAPA (CORRIGIDO E SIMPLIFICADO)
+// ===================================================
+// Substitua o mapa.on('click') antigo por este:
+// ===================================================
+// OUVINTE DE CLIQUE NO MAPA (CORRIGIDO E SEGURO)
+// ===================================================
 mapa.on('click', function(e) {
+  // 1. Se o usuário NÃO estiver logado, ele NÃO pode criar alertas
   if (!auth.currentUser) {
     abrirModalLogin();
     return;
   }
+
+  // 2. Se o usuário clicou no botão "Selecionar no Mapa" (Modo Uber)
+  if (typeof selecionandoLocalManualmente !== 'undefined' && selecionandoLocalManualmente === true) {
+    ultimaLatUsuario = e.latlng.lat;
+    ultimaLngUsuario = e.latlng.lng;
+    selecionandoLocalManualmente = false; // Desativa o modo seleção para o próximo clique ser normal
+    
+    // Reabre o modal expandido trazendo a localização nova
+    abrirModalAlertaExpandido();
+    return;
+  }
+
+  // 3. Clique Normal: Abre o popup pequeno padrão do mapa
   abrirPopupCriacaoAlerta(e.latlng.lat, e.latlng.lng);
 });
 
@@ -109,59 +107,23 @@ function abrirPopupCriacaoAlerta(lat, lng) {
   latClick = lat;
   lngClick = lng;
 
-  // Se já houver um popup aberto, fechar com animação antes de abrir o novo
-  // Se já houver um popup aberto, fechar animado e abrir o novo após a animação
-  const abrirAgora = () => {
-    // Criar popup sem comportamento automático de fechamento
-    const popup = L.popup({ closeOnClick: false, autoClose: false })
-      .setLatLng([lat, lng])
-      .setContent(obterPopupFormularioHTML())
-      .openOn(mapa);
-
-    ultimoPopup = popup;
-
-    // Aplica classe de entrada quando o container estiver disponível
-    setTimeout(() => {
-      try {
-        const cont = popup._container;
-        if (cont) cont.classList.add('leaflet-popup-content-wrapper');
-        const btn = cont && cont.querySelector('.leaflet-popup-close-button');
-        if (btn) {
-          const newBtn = btn.cloneNode(true);
-          btn.parentNode.replaceChild(newBtn, btn);
-          newBtn.addEventListener('click', (ev) => { ev.stopPropagation(); closePopupAnimated(popup); });
-        }
-      } catch (err) {}
-    }, 40);
-
-    detectarBairro(lat, lng);
-  };
-
+  // Se já houver um popup aberto, fecha antes de abrir o novo
   if (ultimoPopup) {
-    closePopupAnimated(ultimoPopup);
-    // abrir o novo popup após permitir que a animação termine
-    setTimeout(abrirAgora, 240);
-  } else {
-    abrirAgora();
+    mapa.closePopup(ultimoPopup);
   }
+
+  // Abre a janelinha exatamente nas coordenadas do clique
+  ultimoPopup = L.popup({ closeOnClick: false })
+    .setLatLng([lat, lng])
+    .setContent(obterPopupFormularioHTML())
+    .openOn(mapa);
+
+  detectarBairro(lat, lng);
 }
 
-function closePopupAnimated(popup) {
-  if (!popup) return;
-  try {
-    const cont = popup._container;
-    if (cont) {
-      cont.classList.add('leaflet-popup-custom-out');
-      const onEnd = (ev) => { popup.remove(); cont.removeEventListener('animationend', onEnd); if (ultimoPopup === popup) ultimoPopup = null; };
-      cont.addEventListener('animationend', onEnd);
-      // fallback caso 'animationend' não dispare
-      setTimeout(() => { try { if (mapa.hasLayer(popup)) popup.remove(); if (ultimoPopup === popup) ultimoPopup = null; } catch(e){} }, 300);
-    } else {
-      if (mapa.hasLayer(popup)) popup.remove(); if (ultimoPopup === popup) ultimoPopup = null;
-    }
-  } catch (err) { try { popup.remove(); } catch(e){}; ultimoPopup = null; }
-}
-
+// ===================================================
+// FUNÇÕES DE EXIBIÇÃO E TOAST
+// ===================================================
 function showToast(msg, type = 'success', ttl = 2800) {
   const cont = document.getElementById('toastContainer');
   if (!cont) return;
@@ -169,7 +131,6 @@ function showToast(msg, type = 'success', ttl = 2800) {
   t.className = 'toast ' + (type === 'success' ? 'success' : '');
   t.innerText = msg;
   cont.appendChild(t);
-  // remover depois de um tempo com animação de saída
   setTimeout(() => {
     t.style.animation = 'toast-out 240ms ease forwards';
     t.addEventListener('animationend', () => { try{ cont.removeChild(t); }catch(e){} });
@@ -188,6 +149,9 @@ function irParaAlerta(lat, lng) {
   });
 }
 
+// ===================================================
+// 2.1 MAPA DE CALOR (CLUSTERING DE ÁREAS CRÍTICAS)
+// ===================================================
 // ===================================================
 // 2.1 MAPA DE CALOR (CLUSTERING DE ÁREAS CRÍTICAS)
 // ===================================================
@@ -250,20 +214,42 @@ function gerarMapaDeCalorDinamico() {
       </div>
     `;
 
+    // 1. CÍRCULO GIGANTE: Agora ele tem "interactive: false". 
+    // Isso faz os cliques "atravessarem" ele e chegarem na rua do mapa!
     const manchaRegiao = L.circle([grupo.lat, grupo.lng], {
-      color: corCalor, fillColor: corCalor, fillOpacity: 0.18, weight: 1.5, radius: 600 
-    }).addTo(mapa).bindPopup(popupEstatistica);
+      color: corCalor, 
+      fillColor: corCalor, 
+      fillOpacity: 0.18, 
+      weight: 1.5, 
+      radius: 600,
+      interactive: false // <-- A mágica que permite você criar o alerta
+    }).addTo(mapa);
 
+    // 2. ÍCONE DE ESTATÍSTICA: Coloca o 📊 no centro do raio só para segurar as estatísticas
+    const iconeGrafico = L.divIcon({
+        className: 'icone-estatistica',
+        html: `<div style="font-size: 22px; text-shadow: 0px 0px 4px white; cursor: pointer;">📊</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+    });
+
+    const marcadorEstatistica = L.marker([grupo.lat, grupo.lng], { icon: iconeGrafico })
+        .addTo(mapa)
+        .bindPopup(popupEstatistica);
+
+    // Salva os dois na memória para limpar quando a tela atualizar
     camadasRegiaoCalor.push(manchaRegiao);
+    camadasRegiaoCalor.push(marcadorEstatistica);
   });
 }
 
 // ===================================================
 // 3. RECUPERAÇÃO REALTIME E FILTRAGENS VISUAIS
 // ===================================================
-// ===================================================
-// OUVINTE EM TEMPO REAL DO FIRESTORE (CORRIGIDO)
-// ===================================================
+function verificarEDispararPushNotificacao(alerta) {
+  console.log("Notificação detectada:", alerta);
+}
+
 db.collection("alertas").orderBy("data", "desc").onSnapshot((querySnapshot) => {
   let novosAlertas = [];
   querySnapshot.forEach((doc) => { 
@@ -279,9 +265,6 @@ db.collection("alertas").orderBy("data", "desc").onSnapshot((querySnapshot) => {
   atualizarInterfaceVisívelComFiltro();
 });
 
-// ===================================================
-// RENDERIZAÇÃO DA INTERFACE COM PREVIEW DE IMAGEM
-// ===================================================
 function atualizarInterfaceVisívelComFiltro() {
   const alertasFiltrados = alertas.filter(alerta => {
     if (filtroTipoAtual === "todos") return true;
@@ -302,22 +285,32 @@ function atualizarInterfaceVisívelComFiltro() {
       alertasFiltrados.forEach(alerta => {
         let cssClass = '';
         if(alerta.tipo.includes('Roubo')) cssClass = 'alerta-roubo';
-        else if(alerta.tipo.includes('Luz')) cssClass = 'alerta-falta-luz';
-        else if(alerta.tipo.includes('Alagamento')) cssClass = 'alerta-alagamento';
-        else if(alerta.tipo.includes('Trânsito')) cssClass = 'alerta-transito';
-        else if(alerta.tipo.includes('Incêndio')) cssClass = 'alerta-incendio';
-        else if(alerta.tipo.includes('Obra') || alerta.tipo.includes('Manutenção')) cssClass = 'alerta-obra';
+else if(alerta.tipo.includes('Luz')) cssClass = 'alerta-falta-luz';
+else if(alerta.tipo.includes('Alagamento')) cssClass = 'alerta-alagamento';
+else if(alerta.tipo.includes('Trânsito')) cssClass = 'alerta-transito';
+else if(alerta.tipo.includes('Incêndio')) cssClass = 'alerta-incendio';
+else if(alerta.tipo.includes('Obra') || alerta.tipo.includes('Manutenção')) cssClass = 'alerta-obra';
+else if(alerta.tipo.includes('Desaparecimento')) cssClass = 'alerta-desaparecimento'; // <-- ADICIONE ESTA LINHA
 
-        let urlImagem = alerta.urlAnexo || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=150';
+        // ASSIM ESTÁ NO SEU CÓDIGO ORIGINAL:
+// COLOQUE ESTE BLOCO CORRIGIDO NO LUGAR:
+// Se o alerta tem uma URL da nuvem, usa ela. Se não tiver mas disser que tem anexo, tenta usar o nome, senão usa o padrão colorido
+let urlImagem = alerta.urlAnexo || (alerta.nomeAnexo ? alerta.nomeAnexo : 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=150');
 
-        let htmlImagemDireita = '';
-        if (alerta.contemAnexo) {
-          htmlImagemDireita = `
-            <div class="coluna-imagem-alerta">
-              <img src="${urlImagem}" class="foto-registro-lateral" alt="Evidência">
-            </div>
-          `;
-        }
+let htmlImagemDireita = '';
+// Forçamos a exibição caso exista o link direto (urlAnexo) ou o marcador antigo (contemAnexo)
+if (alerta.contemAnexo || alerta.urlAnexo) {
+  // Onde você monta o HTML, troque para isso:
+htmlImagemDireita = `
+  <div class="coluna-imagem-alerta">
+    <img src="${urlImagem}" 
+         class="foto-registro-lateral" 
+         onclick="abrirFoto('${urlImagem}')" 
+         alt="Evidência" 
+         style="cursor: pointer;">
+  </div>
+`;
+}
 
         lista.innerHTML += `
         <div class="alerta-card ${cssClass} ${alerta.contemAnexo ? 'com-foto' : ''}" onclick="irParaAlerta(${alerta.lat}, ${alerta.lng})" style="cursor: pointer;">
@@ -334,7 +327,6 @@ function atualizarInterfaceVisívelComFiltro() {
     }
   }
 
-  // Atualização dos marcadores geométricos no mapa
   marcadores.forEach(m => mapa.removeLayer(m));
   marcadores = [];
   
@@ -350,6 +342,7 @@ function atualizarInterfaceVisívelComFiltro() {
   gerarMapaDeCalorDinamico(); 
   renderizarCarrosselComunitario(); 
 }
+
 function filtrarAlertasPorTipo(tipo, botaoClicado) {
   filtroTipoAtual = tipo;
   const botoes = document.querySelectorAll('.btn-filtro');
@@ -365,23 +358,6 @@ function filtrarAlertasPorTipo(tipo, botaoClicado) {
 // ===================================================
 // 4. SISTEMA DE AUTENTICAÇÃO E PERFIL
 // ===================================================
-// ===================================================
-// OUVINTE EM TEMPO REAL DO FIRESTORE (CORRIGIDO)
-// ===================================================
-db.collection("alertas").orderBy("data", "desc").onSnapshot((querySnapshot) => {
-  let novosAlertas = [];
-  querySnapshot.forEach((doc) => { 
-    novosAlertas.push(doc.data()); 
-  });
-
-  if (!primeiraCargaDB && radarAtivo && pushHabilitadoPeloUsuario && novosAlertas.length > alertas.length) {
-    verificarEDispararPushNotificacao(novosAlertas[0]);
-  }
-
-  alertas = novosAlertas;
-  primeiraCargaDB = false;
-  atualizarInterfaceVisívelComFiltro();
-}); // <-- ESSA CHAVE FECHA O OUVINTE DO SNAPSHOT REGRAL
 function login() {
   const email = document.getElementById('email').value;
   const senha = document.getElementById('senha').value;
@@ -401,25 +377,42 @@ function loginComGoogle() {
 
 function loginExitosa() {
   fecharModalLogin();
-  document.getElementById('sistema').style.display = 'block';
+  
+  // Exibe a estrutura do sistema principal
+  const sistema = document.getElementById('sistema');
+  if (sistema) sistema.style.display = 'block';
+  
   document.body.classList.remove('tela-autenticacao'); 
-  document.getElementById('btnNavLogin').style.display = 'none';
-  document.getElementById('btnNavPerfil').style.display = 'block';
+  
+  // Altera os botões de Login / Perfil na barra de navegação
+  const btnLogin = document.getElementById('btnNavLogin');
+  const btnPerfil = document.getElementById('btnNavPerfil');
+  if (btnLogin) btnLogin.style.display = 'none';
+  if (btnPerfil) btnPerfil.style.display = 'block';
   
   const user = auth.currentUser;
-  if (user) { atualizarDadosPerfilTela(user); verificarNivelDeAcessoServidor(user); }
-  gerenciarFluxoDeEntrada();
+  if (user) { 
+    atualizarDadosPerfilTela(user); 
+  }
 }
 
 function sair() {
-  document.getElementById('menuFlutuantePerfil').style.display = 'none';
-  auth.signOut().then(() => {
-    document.getElementById('loginPage').style.display = 'block';
-    document.getElementById('sistema').style.display = 'none';
-    document.getElementById('btnNavLogin').style.display = 'block';
-    document.getElementById('btnNavPerfil').style.display = 'none';
-    if (radarAtivo) navigator.geolocation.clearWatch(idRastreio);
-  });
+  // Fecha o menu de perfil se estiver aberto
+  const menuPerfil = document.getElementById('menuFlutuantePerfil');
+  if (menuPerfil) menuPerfil.style.display = 'none';
+  
+  // Limpa o radar se estiver ativo antes de deslogar
+  if (radarAtivo && idRastreio) {
+    navigator.geolocation.clearWatch(idRastreio);
+    idRastreio = null;
+  }
+  if (circuloRadar) {
+    mapa.removeLayer(circuloRadar);
+    circuloRadar = null;
+  }
+
+  // Faz o logout no Firebase
+  auth.signOut().catch(err => console.error("Erro ao deslogar:", err));
 }
 
 function criarConta() {
@@ -434,12 +427,11 @@ function abrirSubmenuNotificacoes() { document.getElementById('menuPainelPrincip
 function fecharSubmenuNotificacoes() { document.getElementById('menuPainelPrincipal').style.display='block'; document.getElementById('submenuNotificacoes').style.display='none'; }
 function alternarPreferenciaPush() { pushHabilitadoPeloUsuario = document.getElementById('switchPushNotificacao').checked; }
 function mostrarOcultarSenhaLogin() { const s = document.getElementById('senha'); s.type = s.type === 'password' ? 'text' : 'password'; }
-function abrirModalLogin() { const m = document.getElementById('loginPage'); if(m) m.style.display = 'flex'; }
+
 function abrirModalLogin() { 
   const m = document.getElementById('loginPage'); 
   if (!m) return;
   m.style.display = 'flex';
-  // permitir que o browser registre o display antes de adicionar a classe
   requestAnimationFrame(() => m.classList.add('open'));
 }
 
@@ -461,9 +453,12 @@ function atualizarDadosPerfilTela(user) {
   }
 }
 
-document.addEventListener('click', function(e) {
-  const menu = document.getElementById('menuFlutuantePerfil');
-  if (menu && menu.style.display === 'block' && !menu.contains(e.target)) menu.style.display = 'none';
+// Adicione isso ao seu script.js para fechar ao clicar na imagem ampliada
+document.addEventListener('click', (e) => {
+  const ampliada = document.querySelector('.foto-registro-lateral.ampliada');
+  if (ampliada && !e.target.classList.contains('ampliada')) {
+    ampliada.classList.remove('ampliada');
+  }
 });
 
 // ===================================================
@@ -496,8 +491,19 @@ function iniciarRastreio() {
       }
 
       if (radarAtivo) {
-        if (circuloRadar) mapa.removeLayer(circuloRadar);
-        circuloRadar = L.circle([latitude, longitude], { radius: 500, color: '#4285F4', fillColor: '#4285F4', fillOpacity: 0.2 }).addTo(mapa);
+        // CORRIGIDO: Agora usando latitude e longitude reais do rastreio
+        if (circuloRadar) {
+          circuloRadar.setLatLng([latitude, longitude]);
+          circuloRadar.setRadius(500);
+        } else {
+          circuloRadar = L.circle([latitude, longitude], {
+            radius: 500,
+            color: '#0284c7',       // Borda Azul Escuro do Radar
+            fillColor: '#38bdf8',   // Preenchimento Azul Claro
+            fillOpacity: 0.15,
+            weight: 2
+          }).addTo(mapa);
+        }
         verificarAlertasProximos();
       }
     }, null, { enableHighAccuracy: true });
@@ -506,7 +512,7 @@ function iniciarRastreio() {
 
 function calcularNivelPerigo() {
     let totalAlertas = 0;
-    let alertasProximos = []; // Alertas dentro do raio de 500m
+    let alertasProximos = []; 
 
     mapa.eachLayer((layer) => {
         if (layer instanceof L.Marker && layer.options.tipoAlerta) {
@@ -518,19 +524,20 @@ function calcularNivelPerigo() {
         }
     });
 
-    // Calcular nível de perigo baseado na quantidade e proximidade
-    let nivelPerigo = 0; // 0 = verde, 1 = amarelo, 2 = vermelho
-    let alertasCriticos = alertasProximos.filter(a => a.dist <= 250).length; // Muito perto (< 250m)
-    let alertasProximidade = alertasProximos.filter(a => a.dist > 250 && a.dist <= 400).length; // Perto
-    let alertasDistancia = alertasProximos.filter(a => a.dist > 400).length; // Distante
+    let nivelPerigo = 0; 
+    let alertasCriticos = alertasProximos.filter(a => a.dist <= 250).length; 
+    let alertasProximidade = alertasProximos.filter(a => a.dist > 250 && a.dist <= 400).length; 
+    let alertasDistancia = alertasProximos.filter(a => a.dist > 400).length; 
 
-    // Lógica de cálculo de perigo
-    if (alertasCriticos >= 3 || totalAlertas >= 8) {
-        nivelPerigo = 2; // VERMELHO - Perigo
+    // NOVO: Forçamos nível de perigo se houver qualquer Roubo no perímetro
+    const temRouboPerto = alertasProximos.some(a => a.tipo.toLowerCase().includes('roubo'));
+
+    if (alertasCriticos >= 3 || totalAlertas >= 8 || temRouboPerto) {
+        nivelPerigo = 2; // Força o estado crítico (Caixa Vermelha) se houver roubo próximo!
     } else if (alertasCriticos >= 2 || (alertasProximos.length >= 5 && alertasProximos.some(a => a.dist <= 250)) || totalAlertas >= 5) {
-        nivelPerigo = 1; // AMARELO - Ameaça
+        nivelPerigo = 1; 
     } else if (totalAlertas > 0) {
-        nivelPerigo = 0; // VERDE - Fraco/Seguro
+        nivelPerigo = 0; 
     }
 
     return { nivelPerigo, totalAlertas, alertasProximos, alertasCriticos, alertasProximidade };
@@ -540,27 +547,20 @@ function verificarAlertasProximos() {
     const container = document.getElementById('containerAlertasProximidade');
     if (!container) return; container.innerHTML = '';
 
-    // Obter dados de perigo
     const { nivelPerigo, totalAlertas, alertasProximos, alertasCriticos } = calcularNivelPerigo();
 
-    // Cores para cada nível
+    // Customização dinâmica das cores de segurança do perímetro
+    // SUBSTITUA APENAS O DICIONÁRIO "CORES" DENTRO DE verificarAlertasProximos():
     const cores = {
         0: { radarColor: '#22c55e', radarFill: '#86efac', statusBg: '#dcfce7', statusText: '#166534', emoji: '✅', titulo: 'Perímetro Seguro', detalhe: 'Nenhuma ou poucas atividades suspeitas próximas.' },
         1: { radarColor: '#eab308', radarFill: '#fef08a', statusBg: '#fef3c7', statusText: '#a16207', emoji: '⚠️', titulo: 'Ameaça Detectada', detalhe: `${totalAlertas} alerta(s) próximo(s)` },
-        2: { radarColor: '#ef4444', radarFill: '#fca5a5', statusBg: '#fee2e2', statusText: '#7f1d1d', emoji: '🚨', titulo: 'Perigo Imediato', detalhe: `${alertasCriticos} alerta(s) crítico(s) a menos de 250m!` }
+        2: { radarColor: '#ef4444', radarFill: '#fca5a5', statusBg: '#fee2e2', statusText: '#7f1d1d', emoji: '⚠️', titulo: 'Perímetro em Alerta', detalhe: 'Atenção! Foram detectadas atividades suspeitas ou crimes recentes a menos de 500m.' }
     };
 
     const corConfig = cores[nivelPerigo];
 
-    // Atualizar círculo do radar com nova cor
     if (circuloRadar) {
-        circuloRadar.setStyle({
-            color: corConfig.radarColor,
-            fillColor: corConfig.radarFill,
-            fillOpacity: 0.25,
-            weight: 2.5
-        });
-        // Adicionar classe CSS para animação pulsante se tiver perigo
+        // Mantém o círculo azul do radar para não poluir visualmente o mapa, mudando só a pulsação
         const radarElement = circuloRadar._path;
         if (radarElement) {
             if (nivelPerigo === 2) {
@@ -573,27 +573,38 @@ function verificarAlertasProximos() {
         }
     }
 
-    // Atualizar status box
-    const txtRadar = document.getElementById('textoRadar');
-    const txtDet = document.getElementById('detalheRadar');
-    const divS = document.getElementById('statusRadar');
+    // Buscando as tags do seu HTML dinamicamente (por ID ou classe do painel)
+    const txtRadar = document.getElementById('textoRadar') || document.querySelector('.radar-status-box');
+    const txtDet = document.getElementById('detalheRadar') || document.querySelector('.radar-descricao');
+    const divS = document.getElementById('statusRadar') || document.querySelector('.radar-status-box');
 
     if (divS) {
         divS.style.background = corConfig.statusBg;
-        divS.style.borderLeft = `4px solid ${corConfig.radarColor}`;
+        divS.style.color = corConfig.statusText;
+        divS.style.borderColor = corConfig.radarColor;
+        
+        // Se for a caixa principal, mudamos o HTML interno dela
+        if(divS.classList.contains('radar-status-box') || divS.id === 'statusRadar') {
+          divS.innerHTML = corConfig.titulo;
+        }
+    }
+    
+    if (txtRadar && txtRadar !== divS) {
         txtRadar.style.color = corConfig.statusText;
-        txtRadar.innerText = `${corConfig.emoji} ${corConfig.titulo}`;
+        txtRadar.innerText = corConfig.titulo;
+    }
+    if (txtDet) {
         txtDet.innerText = corConfig.detalhe;
+        txtDet.style.color = corConfig.statusText;
     }
 
-    // Adicionar alertas próximos na lista
     alertasProximos.slice(0, 3).forEach(alerta => {
         const iconEmoji = alerta.dist < 250 ? '🔴' : '🟡';
-        container.innerHTML += `<div style="color: ${corConfig.statusText}; font-weight: bold; margin-top: 6px; font-size: 11px;">${iconEmoji} ${alerta.tipo} - ${Math.round(alerta.dist)}m</div>`;
+        container.innerHTML += `<div style="color: #7f1d1d; font-weight: bold; margin-top: 6px; font-size: 11px;">${iconEmoji} ${alerta.tipo} - ${Math.round(alerta.dist)}m</div>`;
     });
 
     if (totalAlertas > 3) {
-        container.innerHTML += `<div style="color: ${corConfig.statusText}; font-size: 10px; margin-top: 6px; font-style: italic;">+${totalAlertas - 3} alerta(s) mais</div>`;
+        container.innerHTML += `<div style="color: #7f1d1d; font-size: 10px; margin-top: 6px; font-style: italic;">+${totalAlertas - 3} alerta(s) mais</div>`;
     }
 }
 
@@ -606,10 +617,17 @@ function centrarEmMim() {
 // ===================================================
 function mostrarPagina(id){
   const paginas = document.querySelectorAll('.pagina');
-  paginas.forEach(p => p.classList.remove('ativa'));
-  const alvo = document.getElementById(id);
-  if (alvo) alvo.classList.add('ativa');
   
+  // Remove a classe ativa de todas as telas (efeito de saída instantâneo)
+  paginas.forEach(p => p.classList.remove('ativa'));
+  
+  // Adiciona a classe na tela certa (dispara a animação sutil de entrada)
+  const alvo = document.getElementById(id);
+  if (alvo) {
+    alvo.classList.add('ativa');
+  }
+  
+  // Mantém os ajustes originais do mapa e carrosséis do seu projeto
   const containerCarrosseis = document.querySelector('.container-carrosseis');
   if(id === 'mapaPagina') {
     if (containerCarrosseis) containerCarrosseis.style.display = 'none'; 
@@ -627,12 +645,13 @@ function salvarAlertaMapa(){
 
   const novo = {
     tipo, bairro, descricao,
-    lat: latClick || mapa.getCenter().lat, lng: lngClick || mapa.getCenter().lng,
+    lat: latClick || mapa.getCenter().lat, 
+    lng: lngClick || mapa.getCenter().lng,
     data: firebase.firestore.FieldValue.serverTimestamp()
   };
+  
   db.collection("alertas").add(novo).then(() => {
-    // fechar popup atual com animação, se houver
-    if (ultimoPopup) closePopupAnimated(ultimoPopup);
+    if (ultimoPopup) mapa.closePopup(ultimoPopup);
     else mapa.closePopup();
     showToast('Alerta publicado com sucesso!', 'success');
   });
@@ -650,8 +669,31 @@ async function detectarBairro(lat, lng){
 }
 
 auth.onAuthStateChanged((user) => {
-  if (user) { loginExitosa(); mostrarPagina('mapaPagina'); } 
-  else { mostrarPagina('inicio'); }
+  const loginPage = document.getElementById('loginPage');
+  const sistema = document.getElementById('sistema');
+
+  if (user) { 
+    // ==========================================
+    // USUÁRIO CADASTRADO / LOGADO -> DIRETO PRO MAPA
+    // ==========================================
+    loginExitosa(); 
+    mostrarPagina('mapaPagina'); 
+  } else { 
+    // ==========================================
+    // USUÁRIO NÃO LOGADO / SAIU -> BOAS-VINDAS
+    // ==========================================
+    // Esconde os dados de perfil da navbar se houver
+    const btnLogin = document.getElementById('btnNavLogin');
+    const btnPerfil = document.getElementById('btnNavPerfil');
+    if (btnLogin) btnLogin.style.display = 'block';
+    if (btnPerfil) btnPerfil.style.display = 'none';
+    
+    // Garante que o modal de login não fique travado aberto no meio da tela
+    if (loginPage) loginPage.style.display = 'none';
+    
+    // Redireciona de forma limpa para a tela de início (boas-vindas)
+    mostrarPagina('inicio'); 
+  }
 });
 
 function scrollCarrossel(id, dir) {
@@ -686,6 +728,21 @@ function gatilhoBotaoAlertaExpandido() {
 
 function abrirModalAlertaExpandido() {
   const m = document.getElementById('modalAlertaExpandido'); if (!m) return;
+  
+  setTimeout(() => {
+    const tipoSelect = document.getElementById('modalExpTipo');
+    if (tipoSelect) {
+      if (![...tipoSelect.options].some(o => o.value === 'Desaparecimento')) {
+        const opt = document.createElement('option');
+        opt.value = 'Desaparecimento';
+        opt.innerHTML = 'Desaparecimento';
+        tipoSelect.appendChild(opt);
+      }
+      tipoSelect.addEventListener('change', gerenciarExibicaoCampoImagem);
+    }
+    gerenciarExibicaoCampoImagem();
+  }, 100);
+
   if (ultimaLatUsuario && ultimaLngUsuario) {
     fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${ultimaLatUsuario}&lon=${ultimaLngUsuario}`)
       .then(res => res.json()).then(d => {
@@ -742,12 +799,74 @@ function salvarAlertaModalExpandido() {
   
   let lat = ultimaLatUsuario || mapa.getCenter().lat;
   let lng = ultimaLngUsuario || mapa.getCenter().lng;
-  const temArq = arq && arq.files.length > 0;
 
-  db.collection("alertas").add({
-    tipo, bairro, descricao, lat, lng,
-    data: firebase.firestore.FieldValue.serverTimestamp(),
-    contemAnexo: temArq,
-    nomeAnexo: temArq ? arq.files[0].name : null
-  }).then(() => { fecharModalAlertaExpandido(); showToast('Alerta publicado com sucesso!', 'success'); });
+  function salvarNoFirestore(urlDaFoto) {
+    db.collection("alertas").add({
+      tipo, 
+      bairro, 
+      descricao, 
+      lat, 
+      lng,
+      data: firebase.firestore.FieldValue.serverTimestamp(),
+      contemAnexo: urlDaFoto ? true : false,
+      urlAnexo: urlDaFoto || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=150',
+      aprovado: false
+    }).then(() => { 
+      fecharModalAlertaExpandido(); 
+      showToast('Alerta publicado com sucesso!', 'success'); 
+    }).catch((error) => {
+      console.error("Erro ao salvar:", error);
+      alert("Ocorreu um erro ao salvar o alerta.");
+    });
+  }
+
+  if (arq && arq.files.length > 0) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const fotoEmTexto = e.target.result;
+      salvarNoFirestore(fotoEmTexto);
+    };
+    reader.readAsDataURL(arq.files[0]);
+  } else {
+    salvarNoFirestore(null);
+  }
+}
+
+function gerenciarExibicaoCampoImagem() {
+  const tipoSelect = document.getElementById('modalExpTipo');
+  const blocoEvidencia = document.getElementById('blocoEvidencia');
+  const campoArquivo = document.getElementById('modalExpArquivo');
+  const previewImagem = document.getElementById('modalExpPreview');
+  const textoArquivo = document.getElementById('nomeArquivoTexto');
+  
+  if (tipoSelect && blocoEvidencia) {
+    if (tipoSelect.value === 'Desaparecimento') {
+      blocoEvidencia.style.display = 'block';
+    } else {
+      blocoEvidencia.style.display = 'none';
+      if (campoArquivo) campoArquivo.value = ''; 
+      if (previewImagem) previewImagem.style.display = 'none';
+      if (textoArquivo) textoArquivo.textContent = 'Nenhum arquivo selecionado';
+    }
+  }
+}
+
+let selecionandoLocalManualmente = false;
+
+function iniciarSelecaoManualMapa() {
+  selecionandoLocalManualmente = true;
+  fecharModalAlertaExpandido(); 
+  showToast('Toque no mapa para escolher o local do alerta', 'info', 4000);
+}
+
+function fecharFoto() {
+  document.querySelector('.foto-registro-lateral.ampliada')?.classList.remove('ampliada');
+  document.querySelector('.overlay-ampliado').style.display = 'none';
+}
+function abrirFoto(url) {
+  const modal = document.getElementById('modal-imagem-global');
+  const imgConteudo = document.getElementById('imagem-ampliada-conteudo');
+  
+  imgConteudo.src = url; // Define a imagem que foi clicada
+  modal.style.display = 'flex'; // Mostra o modal na tela
 }

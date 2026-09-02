@@ -1431,13 +1431,143 @@ button.salvar:hover {
   align-items: center;
   justify-content: center;
 }
-/* Estilização da imagem de evidência fixada */
+/* Remova o z-index e position relative da foto normal */
 .foto-registro-lateral {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important; /* Corta proporcionalmente sem achatar a foto */
-  border-radius: 8px !important;
-  border: 1px solid #475569 !important;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
-  transition: transform 0.3s ease-in-out !important;
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+  display: block; /* Garante que o clique pegue a área toda */
+}
+.alerta-card.alerta-desaparecimento {
+  border-left: 5px solid #6b21a8 !important; /* Roxo escuro para destacar desaparecimentos */
+}
+/* Configuração base para todas as páginas */
+/* ==============================================
+   TRANSIÇÃO SUTIL E FLUIDA ENTRE AS TELAS
+   ============================================== */
+
+/* Configuração base de todas as páginas */
+.pagina {
+  display: none;
+  opacity: 0;
+}
+
+/* Quando a página ganha a classe ativa, ela executa a animação */
+.pagina.ativa {
+  display: block !important; /* Força a exibição para o CSS animar */
+  animation: entradaSuave 0.22s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Animação rápida, discreta e profissional */
+@keyframes entradaSuave {
+  0% {
+    opacity: 0;
+    transform: scale(0.99) translateY(4px); /* Começa 1% menor e 4px abaixo */
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0); /* Termina no tamanho e lugar original */
+  }
+}
+/* Efeito de zoom suave nas fotos dos registros */
+.foto-registro-lateral {
+  transition: transform 0.3s ease, box-shadow 0.3s ease; /* Transição suave */
+  cursor: zoom-in; /* Indica ao usuário que dá para interagir */
+}
+
+.foto-registro-lateral:hover {
+  transform: scale(1.5); /* Amplia 50% do tamanho original */
+  box-shadow: 0 10px 20px rgba(0,0,0,0.3); /* Adiciona sombra para dar destaque */
+  z-index: 100; /* Garante que ela fique por cima de tudo */
+  position: relative; /* Necessário para o z-index funcionar */
+}
+/* Container da imagem original */
+.foto-container {
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+/* Estilo da imagem normal */
+.foto-registro-lateral {
+  width: 80px; /* Ajuste o tamanho da sua thumbnail */
+  height: 80px;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+/* Fundo escuro que aparece atrás quando a imagem amplia */
+.overlay-ampliado {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6); /* Escurece o site todo */
+  z-index: 9998;
+  display: none; /* Começa escondido */
+}
+/* Fundo escuro que cobre tudo ao clicar na foto */
+#modal-imagem-global {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 999999;
+  justify-content: center;
+  align-items: center;
+  cursor: zoom-out;
+}
+
+#modal-imagem-global img {
+  max-width: 90%;
+  max-height: 80vh;
+  border-radius: 8px;
+  box-shadow: 0 0 20px rgba(0,0,0,0.5);
+  border: 4px solid white;
+}
+/* Estilo para a caixa que segura a imagem */
+.caixa-preview {
+    border: 2px solid #eab308; /* Mantém a sua borda amarela/dourada */
+    border-radius: 15px;       /* Mantém os cantos arredondados */
+    overflow: hidden;          /* ESSENCIAL: Isso corta as pontas da imagem para não vazar da borda! */
+    background-color: #0f172a; /* Fundo azul escuro */
+    width: 100%;
+    max-width: 600px;          /* Ajuste para o tamanho que desejar */
+    height: auto;
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.3); /* Dá um efeito 3D flutuante */
+}
+
+/* Estilo para a imagem preencher a caixa certinho */
+.caixa-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Faz a imagem se adaptar sem esticar ou achatar */
+    display: block;
+}
+/* Container que imita o molde do seu site */
+/* Isso garante que a caixa tenha um tamanho fixo e pequeno */
+/* --- REGRA DE FORÇA MÁXIMA PARA OS CARDS DA LANDING PAGE --- */
+.card .img-placeholder {
+    width: 100% !important;
+    height: 150px !important; /* Altura fixa da caixa */
+    background-color: #edf2f7;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.card .img-placeholder img {
+    width: 100% !important;   /* Força a largura a caber na caixa */
+    height: 100% !important;  /* Força a altura a caber na caixa */
+    object-fit: cover !important; /* Corta o excesso para preencher o quadrado perfeitamente */
+    display: block !important;
 }

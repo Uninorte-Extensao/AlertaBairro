@@ -39,7 +39,9 @@
 
   <header style="display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; background: #0A2540; height: 70px;">
     <div class="logo-container" style="display: flex; align-items: center; gap: 10px;">
-      <img src="logo-app.jpeg" alt="Alerta Bairro Logo" class="app-logo" style="height: 45px; width: 45px; border-radius: 8px;">
+      <svg class="app-logo" style="height: 45px; width: 45px; border-radius: 8px; background: #E5B842; padding: 4px; box-sizing: border-box;" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <text x="50" y="65" font-size="70" font-weight="bold" text-anchor="middle" fill="#DC3545">🚨</text>
+      </svg>
       <span class="logo-texto" style="color: white; font-weight: 700; font-size: 20px;">Alerta Bairro</span>
     </div>
 
@@ -50,8 +52,7 @@
       
       <div style="display: flex; align-items: center; gap: 10px;">
         <button onclick="mostrarPagina('inicio')" style="background: transparent; border: none; color: white; cursor: pointer; font-weight: 500; padding: 8px 12px;">🏠 Boas-vindas</button>
-        <button onclick="mostrarPagina('mapaPagina')" style="background: transparent; border: none; color: white; cursor: pointer; font-weight: 500; padding: 8px 12px;">🗺️ Quadro Branco</button>
-      </div>
+        <button onclick="mostrarPagina('mapaPagina')" style="background: transparent; border: none; color: white; cursor: pointer; font-weight: 500; padding: 8px 12px;">🗺️ Mapa de Alertas</button>
 
       <button id="btnNavPerfil" onclick="toggleMenuPerfil(event)" style="display: none; font-weight: 600; background: #E5B842; color: #0A2540; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer;">👤 Perfil</button>
     </nav>
@@ -107,9 +108,9 @@
           <p>O Alerta Bairro é uma plataforma intuitiva baseada em quadros brancos digitais que ajuda comunidades a mapear incidentes, rastrear perímetros via satélite e proteger quem você ama de forma integrada.</p>
           <button class="btn-landing-cta" onclick="mostrarPagina('mapaPagina')">Começar a monitorar agora →</button>
         </div>
-        <div class="hero-image-placeholder">
-          <span>[Espaço para Imagem: Preview do Quadro Branco / Dashboard]</span>
-        </div>
+        <div class="caixa-preview">
+    <img src="preview-mapa.png" alt="Preview do Mapa Alerta Bairro">
+</div>
       </section>
 
       <section class="stats-section">
@@ -272,25 +273,36 @@
     
     <label style="font-size: 12px; font-weight: 600; color: #495057; display: block; margin-bottom: 4px;">Tipo de Incidente:</label>
     <select id="modalExpTipo" style="width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 6px;">
-      <option>Roubo</option>
-      <option>Falta de Luz</option>
-      <option>Alagamento</option>
-      <option>Acidente de Trânsito</option>
-    </select>
+        <option>Roubo</option>
+        <option>Falta de Luz</option>
+        <option>Alagamento</option>
+        <option>Acidente de Trânsito</option>
+        <option>Desaparecimento</option>
+      </select>
 
-    <label style="font-size: 12px; font-weight: 600; color: #495057; display: block; margin-bottom: 4px;">Localização aproximada (Bairro):</label>
-    <input type="text" id="modalExpBairro" placeholder="Ex: Centro, Cachoeirinha..." style="width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 6px;">
+      <label style="font-size: 12px; font-weight: 600; color: #495057; display: block; margin-bottom: 4px;">Localização aproximada (Bairro):</label>
+      
+      <!-- CONTAINER FLEXÍVEL COM O BOTÃO ESTILO UBER -->
+      <div style="display: flex; gap: 8px; margin-bottom: 12px; width: 100%;">
+        <input type="text" id="modalExpBairro" placeholder="Ex: Centro, Cachoeirinha..." style="flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 6px;" readonly>
+        <button type="button" onclick="iniciarSelecaoManualMapa()" style="background: #0A2540; color: white; border: none; padding: 0 15px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; white-space: nowrap;">
+          📍 Selecionar no Mapa
+        </button>
+      </div>
 
-    <label style="font-size: 12px; font-weight: 600; color: #495057; display: block; margin-bottom: 4px;">Descrição detalhada da ocorrência:</label>
-    <textarea id="modalExpDescricao" rows="4" placeholder="Descreva o que aconteceu com o máximo de detalhes possível..." style="width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 6px; resize: vertical; font-family: sans-serif;"></textarea>
+      <label style="font-size: 12px; font-weight: 600; color: #495057; display: block; margin-bottom: 4px;">Descrição detalhada da ocorrência:</label>
+      <textarea id="modalExpDescricao" rows="4" placeholder="Descreva o que aconteceu com o máximo de detalhes possível..." style="width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 6px;"></textarea>
 
-    <label style="font-size: 12px; font-weight: 600; color: #495057; display: block; margin-bottom: 4px;">Anexar Evidências (Fotos / Documentos):</label>
-    <div style="border: 2px dashed #cbd5e1; padding: 15px; text-align: center; border-radius: 8px; margin-bottom: 20px; background: #f8fafc;">
-      <input type="file" id="modalExpArquivo" style="display: none;" onchange="mostrarPreviewArquivoModal(event)">
-      <button type="button" onclick="document.getElementById('modalExpArquivo').click()" style="background: #cbd5e1; border: none; padding: 6px 12px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: 600; color: #334155;">Escolher Arquivo</button>
-      <p id="nomeArquivoTexto" style="font-size: 11px; color: #64748b; margin-top: 6px;">Nenhum arquivo selecionado</p>
-      <img id="modalExpPreview" alt="preview" style="display:none; width:100%; max-height:220px; object-fit:cover; margin-top:10px; border-radius:8px;" />
-    </div>
+      <!-- BLOCO DA FOTO ATUALIZADO (QUE VAI SUMIR NOS OUTROS ALERTAS) -->
+      <div id="blocoEvidencia" style="display: none;">
+        <label style="font-size: 12px; font-weight: 600; color: #495057; display: block; margin-bottom: 4px;">Anexar Evidências (Fotos / Documentos):</label>
+        <div style="border: 2px dashed #cbd5e1; padding: 15px; text-align: center; border-radius: 8px; margin-bottom: 20px; background: #f8fafc;">
+          <input type="file" id="modalExpArquivo" style="display: none;" onchange="mostrarPreviewArquivoModal(event)">
+          <button type="button" onclick="document.getElementById('modalExpArquivo').click()" style="background: #cbd5e1; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">Escolher Arquivo</button>
+          <p id="nomeArquivoTexto" style="font-size: 11px; color: #64748b; margin-top: 6px;">Nenhum arquivo selecionado</p>
+          <img id="modalExpPreview" alt="preview" style="display: none; width: 100%; max-height: 220px; object-fit: cover; margin-top: 10px; border-radius: 8px;" />
+        </div>
+      </div>
 
     <button class="salvar" onclick="salvarAlertaModalExpandido()" style="width: 100%; background: #D9383A; font-weight: 700;">Publicar Alerta na Comunidade</button>
   </div>
@@ -299,9 +311,12 @@
 <script src="https://www.gstatic.com/firebasejs/10.11.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.11.1/firebase-auth-compat.js"></script>
-
+<script src="https://www.gstatic.com/firebasejs/10.11.1/firebase-storage-compat.js"></script>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="script.js"></script>
-
+<div id="modal-imagem-global" onclick="this.style.display='none'">
+  <img id="imagem-ampliada-conteudo" src="" alt="Ampliada">
+</div>
+</body>
 </body>
 </html>

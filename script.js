@@ -870,3 +870,136 @@ function abrirFoto(url) {
   imgConteudo.src = url; // Define a imagem que foi clicada
   modal.style.display = 'flex'; // Mostra o modal na tela
 }
+
+// ===================================================
+// 8. INTEGRAÇÃO COM INTELIGÊNCIA ARTIFICIAL (GEMINI)
+// ===================================================
+async function analisarAlertaComIA(tipo, descricao) {
+    // IMPORTANTE: Cole sua chave do Google AI Studio aqui!
+    const API_KEY = "AQ.Ab8RN6LPyryAY3_b-SqR0cIHRKBdUnQpucKDmP8YetvlCnvBOA"; 
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+
+    const prompt = `
+    Você é um moderador rigoroso de um app de segurança de Manaus. 
+    O usuário tentou registrar o seguinte alerta:
+    - Categoria: "${tipo}"
+    - Descrição: "${descricao}"
+    
+    Analise o contexto:
+    1. Se for uma piada, trote óbvio, xingamento ou algo impossível, bloqueie (valido: false).
+    2. Se for um exagero (ex: classificar a perda de um brinquedo/bebê reborn como "Desaparecimento" humano), reduza a severidade para BAIXA ou bloqueie se for puro spam.
+    3. Ocorrências reais de infraestrutura (falta de luz) ou crimes (roubo) são válidos (valido: true) e devem receber severidade ALTA ou MEDIA conforme o perigo real à população.
+    
+    Retorne APENAS um JSON válido, sem nenhuma formatação markdown, com este exato formato:
+    {
+      "valido": true ou false,
+      "severidade_corrigida": "ALTA", "MEDIA" ou "BAIXA",
+      "motivo": "Explicação curta do seu raciocínio"
+    }`;
+
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }]
+            })
+        });
+
+        const data = await response.json();
+        const textoLimpo = data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
+        return JSON.parse(textoLimpo);
+    } catch (err) {
+        console.error("Erro na IA, salvando por precaução:", err);
+        return { valido: true, severidade_corrigida: "MEDIA", motivo: "Sistema de IA offline" };
+    }
+}
+
+// ===================================================
+// SUBSTITUA SUAS DUAS FUNÇÕES DE SALVAR POR ESTAS ABAIXO:
+// ===================================================
+
+// 1. Substitua a sua função salvarAlertaMapa() antiga por esta:
+async function salvarAlertaMapa() {
+  const tipo = document.getElementById('popupTipo').value;
+  const bairro = document.getElementById('popupBairro').value;
+  const descricao = document.getElementById('popupDescricao').value;
+  
+  if(!bairro || !descricao) return alert('Preencha os dados.');
+
+  showToast('Analisando alerta com Inteligência Artificial...', 'info', 3000);
+
+  // Validação da IA
+  const analise = await analisarAlertaComIA(tipo, descricao);
+
+  if (!analise.valido) {
+      alert(`⚠️ Alerta Bloqueado pela IA!\nMotivo: ${analise.motivo}`);
+      return; // Impede que o trote vá para o Firebase
+  }
+
+  const novo = {
+    tipo, bairro, descricao,
+    severidade: analise.severidade_corrigida, // Adicionamos a nota da IA no banco!
+    lat: latClick || mapa.getCenter().lat, 
+    lng: lngClick || mapa.getCenter().lng,
+    data: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  
+  db.collection("alertas").add(novo).then(() => {
+    if (ultimoPopup) mapa.closePopup(ultimoPopup);
+    else mapa.closePopup();
+    showToast(`Publicado! A IA classificou a severidade como ${analise.severidade_corrigida}.`, 'success', 4000);
+  });
+}
+
+// 2. Substitua a sua função salvarAlertaModalExpandido() antiga por esta:
+async function salvarAlertaModalExpandido() {
+  const tipo = document.getElementById('modalExpTipo').value;
+  const bairro = document.getElementById('modalExpBairro').value;
+  const descricao = document.getElementById('modalExpDescricao').value;
+  const arq = document.getElementById('modalExpArquivo');
+
+  if (!bairro || !descricao) return alert('Por favor, preencha todos os campos obrigatórios.');
+  
+  showToast('Analisando relato e evidências com IA...', 'info', 3000);
+
+  // Validação da IA
+  const analise = await analisarAlertaComIA(tipo, descricao);
+
+  if (!analise.valido) {
+      alert(`⚠️ Denúncia Recusada!\nA Inteligência Artificial identificou inconsistências:\n${analise.motivo}`);
+      return; 
+  }
+
+  let lat = ultimaLatUsuario || mapa.getCenter().lat;
+  let lng = ultimaLngUsuario || mapa.getCenter().lng;
+
+  function salvarNoFirestore(urlDaFoto) {
+    db.collection("alertas").add({
+      tipo, bairro, descricao, lat, lng,
+      severidade: analise.severidade_corrigida, // Salvando a nota da IA
+      nota_ia: analise.motivo, // Salvando o raciocínio da IA para auditoria
+      data: firebase.firestore.FieldValue.serverTimestamp(),
+      contemAnexo: urlDaFoto ? true : false,
+      urlAnexo: urlDaFoto || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=150',
+      aprovado: false
+    }).then(() => { 
+      fecharModalAlertaExpandido(); 
+      showToast(`Alerta salvo! Risco: ${analise.severidade_corrigida}`, 'success'); 
+    }).catch((error) => {
+      console.error("Erro ao salvar:", error);
+      alert("Ocorreu um erro ao salvar o alerta.");
+    });
+  }
+
+  if (arq && arq.files.length > 0) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const fotoEmTexto = e.target.result;
+      salvarNoFirestore(fotoEmTexto);
+    };
+    reader.readAsDataURL(arq.files[0]);
+  } else {
+    salvarNoFirestore(null);
+  }
+}

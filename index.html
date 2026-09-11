@@ -109,8 +109,8 @@
           <button class="btn-landing-cta" onclick="mostrarPagina('mapaPagina')">Começar a monitorar agora →</button>
         </div>
         <div class="caixa-preview">
-    <img src="preview-mapa.png" alt="Preview do Mapa Alerta Bairro">
-</div>
+          <img src="preview-mapa.png" alt="Preview do Mapa Alerta Bairro">
+        </div>
       </section>
 
       <section class="stats-section">
@@ -224,16 +224,39 @@
 
   <div id="mapaPagina" class="pagina">
     <div class="container-filtros-mapa" style="padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; background: #fff; border-bottom: 1px solid #e2e8f0; position: relative; z-index: 1001;">
-      <div style="display: flex; gap: 8px;">
+      <div style="display: flex; gap: 8px; align-items: center;">
         <button class="btn-filtro ativo" onclick="filtrarAlertasPorTipo('todos', this)" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 12px; font-weight: 500; cursor: pointer;">🔍 Todos</button>
         <button class="btn-filtro" onclick="filtrarAlertasPorTipo('roubo', this)" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 12px; font-weight: 500; cursor: pointer;">🛑 Roubos</button>
         <button class="btn-filtro" onclick="filtrarAlertasPorTipo('luz', this)" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 12px; font-weight: 500; cursor: pointer;">💡 Falta de Luz</button>
         <button class="btn-filtro" onclick="filtrarAlertasPorTipo('alagamento', this)" style="padding: 6px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 12px; font-weight: 500; cursor: pointer;">🌊 Alagamentos</button>
+
+        <button id="btnVozIA" onclick="alternarGravacaoVozIA()" class="btn-voz-ia-filtro" title="Criar alerta por áudio via Inteligência Artificial">
+          🎙️ Relatar por Voz (IA)
+        </button>
       </div>
 
       <button onclick="gatilhoBotaoAlertaExpandido()" style="background: #D9383A; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(217, 56, 58, 0.2); transition: all 0.2s;">
         🚨 Criar Alerta Completo
       </button>
+    </div>
+    
+    <div id="modalVozIA" class="card-status-voz-ia" style="display: none;">
+      <div class="conteudo-voz-ia">
+        <div id="iconeVozIA" class="mic-icone-animado">🎙️</div>
+        <div class="info-voz-ia">
+          <h4 id="tituloVozIA">Gravando seu relato...</h4>
+          <p id="subtituloVozIA">Fale o tipo de incidente, local e detalhes (ex: "Assalto na Praça 14 agora").</p>
+        </div>
+        <button id="btnAcaoVozIA" onclick="pararGravacaoVozIA()" class="btn-parar-gravacao">⏹️ Finalizar</button>
+      </div>
+
+      <!-- Janela Flutuante de Análise em Tempo Real -->
+      <div id="caixaAnaliseLive" style="display: none; margin-top: 12px; padding: 12px; background: #1e293b; border-radius: 10px; border-left: 3px solid #6366f1; font-size: 12px; color: #e2e8f0; font-family: monospace;">
+        <div style="font-weight: bold; color: #818cf8; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+          <span>⚡</span> Análise em tempo real:
+        </div>
+        <div id="textoAnaliseLive" style="line-height: 1.5; white-space: pre-wrap; min-height: 24px;"></div>
+      </div>
     </div>
 
     <div id="mapa"></div>
@@ -317,6 +340,5 @@
 <div id="modal-imagem-global" onclick="this.style.display='none'">
   <img id="imagem-ampliada-conteudo" src="" alt="Ampliada">
 </div>
-</body>
 </body>
 </html>

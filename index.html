@@ -55,6 +55,7 @@
         <button onclick="mostrarPagina('mapaPagina')" style="background: transparent; border: none; color: white; cursor: pointer; font-weight: 500; padding: 8px 12px;">🗺️ Mapa de Alertas</button>
 
       <button id="btnNavPerfil" onclick="toggleMenuPerfil(event)" style="display: none; font-weight: 600; background: #E5B842; color: #0A2540; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer;">👤 Perfil</button>
+      </div>
     </nav>
   </header>
 
@@ -316,8 +317,7 @@
       <label style="font-size: 12px; font-weight: 600; color: #495057; display: block; margin-bottom: 4px;">Descrição detalhada da ocorrência:</label>
       <textarea id="modalExpDescricao" rows="4" placeholder="Descreva o que aconteceu com o máximo de detalhes possível..." style="width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 6px;"></textarea>
 
-      <!-- BLOCO DA FOTO ATUALIZADO (QUE VAI SUMIR NOS OUTROS ALERTAS) -->
-      <div id="blocoEvidencia" style="display: none;">
+      <div id="blocoEvidencia">
         <label style="font-size: 12px; font-weight: 600; color: #495057; display: block; margin-bottom: 4px;">Anexar Evidências (Fotos / Documentos):</label>
         <div style="border: 2px dashed #cbd5e1; padding: 15px; text-align: center; border-radius: 8px; margin-bottom: 20px; background: #f8fafc;">
           <input type="file" id="modalExpArquivo" style="display: none;" onchange="mostrarPreviewArquivoModal(event)">
@@ -327,7 +327,13 @@
         </div>
       </div>
 
+      <button type="button" id="btnVozModal" onclick="iniciarRelatoPorVozModal()" style="width: 100%; padding: 12px; margin-bottom: 15px; background-color: #8b5cf6; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        🎙️ Relatar por Voz (Auto-preenchimento IA)
+      </button>
+
     <button class="salvar" onclick="salvarAlertaModalExpandido()" style="width: 100%; background: #D9383A; font-weight: 700;">Publicar Alerta na Comunidade</button>
+    </div>
+  </div>
   </div>
 </div>
 

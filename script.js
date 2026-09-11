@@ -126,6 +126,34 @@ function showToast(msg, type = 'success', ttl = 2800) {
   }, ttl);
 }
 
+function escaparHTML(valor) {
+  return String(valor ?? '').replace(/[&<>'"]/g, caractere => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;'
+  }[caractere]));
+}
+
+function obterIconeAlerta(severidade) {
+  const configuracoes = {
+    CRITICA: { cor: '#b91c1c', icone: '🚨' },
+    ALTA: { cor: '#dc2626', icone: '⚠️' },
+    MEDIA: { cor: '#d97706', icone: '⚠️' },
+    BAIXA: { cor: '#15803d', icone: '✅' }
+  };
+  const configuracao = configuracoes[severidade] || configuracoes.MEDIA;
+
+  return L.divIcon({
+    className: 'marcador-alerta-severidade',
+    html: `<span style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border:2px solid white;border-radius:50%;background:${configuracao.cor};box-shadow:0 2px 6px rgba(0,0,0,.35);font-size:16px;">${configuracao.icone}</span>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+    popupAnchor: [0, -15]
+  });
+}
+
 function irParaAlerta(lat, lng) {
   if (!lat || !lng) return;
   mapa.flyTo([lat, lng], 16, { animate: true, duration: 0.8 });
@@ -265,6 +293,9 @@ function atualizarInterfaceVisívelComFiltro() {
       lista.innerHTML = '';
       
       alertasFiltrados.forEach(alerta => {
+        const tipo = escaparHTML(alerta.tipo);
+        const bairro = escaparHTML(alerta.bairro);
+        const descricao = escaparHTML(alerta.descricao);
         let cssClass = '';
         if(alerta.tipo.includes('Roubo')) cssClass = 'alerta-roubo';
         else if(alerta.tipo.includes('Luz')) cssClass = 'alerta-falta-luz';
@@ -280,9 +311,10 @@ function atualizarInterfaceVisívelComFiltro() {
         if (alerta.contemAnexo || alerta.urlAnexo) {
           htmlImagemDireita = `
             <div class="coluna-imagem-alerta">
-              <img src="${urlImagem}" 
+              <img src="${escaparHTML(urlImagem)}"
                    class="foto-registro-lateral" 
-                   onclick="abrirFoto('${urlImagem}')" 
+                   data-url="${escaparHTML(urlImagem)}"
+                   onclick="abrirFoto(this.dataset.url)"
                    alt="Evidência" 
                    style="cursor: pointer;">
             </div>
@@ -292,11 +324,11 @@ function atualizarInterfaceVisívelComFiltro() {
         lista.innerHTML += `
         <div class="alerta-card ${cssClass} ${alerta.contemAnexo ? 'com-foto' : ''}" onclick="irParaAlerta(${alerta.lat}, ${alerta.lng})" style="cursor: pointer;">
           <div class="coluna-texto-alerta">
-            <div class="alerta-header">
-              <span>🚨 ${alerta.tipo}</span>
-              <span class="alerta-bairro">📍 ${alerta.bairro}</span>
+              <div class="alerta-header">
+                <span>🚨 ${tipo}</span>
+                <span class="alerta-bairro">📍 ${bairro}</span>
             </div>
-            <div class="alerta-corpo">${alerta.descricao}</div>
+              <div class="alerta-corpo">${descricao}</div>
           </div>
           ${htmlImagemDireita}
         </div>`;
@@ -309,8 +341,12 @@ function atualizarInterfaceVisívelComFiltro() {
   
   alertasFiltrados.forEach(alerta => {
     if(alerta.lat && alerta.lng){
-      const marcador = L.marker([alerta.lat, alerta.lng], { tipoAlerta: alerta.tipo }).addTo(mapa);
-      marcador.bindPopup(`<strong>🚨 ${alerta.tipo}</strong><br>${alerta.descricao}`);
+      const severidade = alerta.severidade || 'MEDIA';
+      const marcador = L.marker([alerta.lat, alerta.lng], {
+        icon: obterIconeAlerta(severidade),
+        tipoAlerta: alerta.tipo
+      }).addTo(mapa);
+      marcador.bindPopup(`<strong>🚨 ${escaparHTML(alerta.tipo)}</strong><br>Prioridade: ${escaparHTML(severidade)}<br>${escaparHTML(alerta.descricao)}`);
       marcador.on('click', function(e) { L.DomEvent.stopPropagation(e); });
       marcadores.push(marcador);
     }
@@ -565,17 +601,25 @@ function mostrarPagina(id){
   }
 }
 
-function salvarAlertaMapa(){
+async function salvarAlertaMapa(){
   const tipo = document.getElementById('popupTipo').value;
   const bairro = document.getElementById('popupBairro').value;
   const descricao = document.getElementById('popupDescricao').value;
   if(!bairro || !descricao) return alert('Preencha os dados.');
 
+  const triagem = await analisarAlertaComIA(tipo, descricao);
+  if (!triagem.valido) {
+    showToast(`Alerta bloqueado pela triagem: ${triagem.motivo}`, 'error', 5000);
+    return;
+  }
+
   const novo = {
     tipo, bairro, descricao,
     lat: latClick || mapa.getCenter().lat, 
     lng: lngClick || mapa.getCenter().lng,
-    data: firebase.firestore.FieldValue.serverTimestamp()
+    data: firebase.firestore.FieldValue.serverTimestamp(),
+    severidade: triagem.severidade_corrigida,
+    motivoTriagem: triagem.motivo
   };
   
   db.collection("alertas").add(novo).then(() => {
@@ -621,9 +665,12 @@ function renderizarCarrosselComunitario() {
     container.innerHTML = `<div class="card-vazio"><p>Nenhum alerta registrado.</p></div>`; return;
   }
   alertas.forEach(a => {
+    const tipo = escaparHTML(a.tipo);
+    const descricao = escaparHTML(a.descricao);
+    const bairro = escaparHTML(a.bairro);
     container.innerHTML += `
       <div class="card-carrossel-item" onclick="irParaAlerta(${a.lat}, ${a.lng})" style="min-width:200px; padding:10px; background:#fff; border-radius:8px; margin-right:10px; border:1px solid #e2e8f0; cursor:pointer;">
-        <strong>🚨 ${a.tipo}</strong><p style="font-size:11px; color:#64748b; margin-top:4px;">${a.descricao}</p><small style="color:#94a3b8;">📍 ${a.bairro}</small>
+        <strong>🚨 ${tipo}</strong><p style="font-size:11px; color:#64748b; margin-top:4px;">${descricao}</p><small style="color:#94a3b8;">📍 ${bairro}</small>
       </div>`;
   });
 }
@@ -675,7 +722,69 @@ function abrirFoto(url) {
 // ===================================================
 // 8. TRIAGEM POR VOZ E PROCESSAMENTO DE IA (GEMINI)
 // ===================================================
-const GEMINI_API_KEY = "SUA_CHAVE_GEMINI_AQUI";
+
+// ===================================================
+// 8. INTEGRAÇÃO COM INTELIGÊNCIA ARTIFICIAL (GEMINI)
+// ===================================================
+async function analisarAlertaComIA(tipo, descricao) {
+    // A chave já está pegando da variável global que o Victor criou
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+    const prompt = `
+    Você é o Diretor de Triagem do sistema de segurança 'Alerta Bairro' de Manaus.
+    Sua missão é classificar ocorrências e BLOQUEAR trotes para não sujar o banco de dados.
+
+    DADOS DO ALERTA:
+    - Categoria: "${tipo}"
+    - Descrição: "${descricao}"
+
+    ESCALA DE PRIORIDADE OFICIAL (ESCOLHA APENAS UMA):
+    - CRITICA: Risco imediato à vida ou desastre (ex: tiroteio, desabamento, enchente grave).
+    - ALTA: Risco à segurança ou infraestrutura (ex: assalto à mão armada, fio de alta tensão rompido no meio da rua).
+    - MEDIA: Transtorno que exige atenção (ex: falta de luz no quarteirão, buraco muito grande, acidente sem vítimas).
+    - BAIXA: Problemas menores (ex: lixo acumulado, som alto, animal de rua).
+    - TROTE: Relatos absurdos, objetos inanimados ou falso pânico (ex: "perdi meu bebê reborn", "meu boneco sumiu", "roubaram meu coração", xingamentos).
+
+    A REGRA DE OURO (OBRIGATÓRIO):
+    1. Se a classificação for TROTE (como o sumiço de bonecos/bebê reborn), você DEVE retornar "valido": false.
+    2. Para qualquer ocorrência real (CRITICA, ALTA, MEDIA, BAIXA), retorne "valido": true.
+
+    Retorne APENAS um JSON válido, sem crases (sem \`\`\`json), neste exato formato:
+    {
+      "valido": true ou false,
+      "severidade_corrigida": "CRITICA",
+      "motivo": "Sua justificativa curta e técnica"
+    }`;
+
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }]
+            })
+        });
+
+        if (!response.ok) throw new Error(`Gemini HTTP ${response.status}`);
+        const data = await response.json();
+        const textoLimpo = data.candidates?.[0]?.content?.parts?.[0]?.text
+          ?.replace(/```json|```/g, '').trim();
+        if (!textoLimpo) throw new Error('Resposta vazia da IA');
+
+        const resultado = JSON.parse(textoLimpo);
+        const severidadesValidas = ['CRITICA', 'ALTA', 'MEDIA', 'BAIXA'];
+        if (typeof resultado.valido !== 'boolean'
+          || !severidadesValidas.includes(resultado.severidade_corrigida)
+          || typeof resultado.motivo !== 'string') {
+          throw new Error('Resposta da IA fora do formato esperado');
+        }
+        return resultado;
+    } catch (err) {
+        console.error("Erro na IA; publicação bloqueada:", err);
+        return { valido: false, severidade_corrigida: "MEDIA", motivo: "A triagem está indisponível. Tente novamente." };
+    }
+}
+const GEMINI_API_KEY = "SAQ.Ab8RN6L-J9NftuNSZSl2i95rw17IMVMaXUJ48oohKKbIHWFkTQ";
 
 let mediaRecorderIA = null;
 let audioChunksIA = [];
@@ -918,6 +1027,13 @@ async function processarAudioComGemini(base64Audio, mimeType) {
 }
 
 async function cadastrarAlertaGeradoPorIA(dados) {
+  const triagem = await analisarAlertaComIA(dados.tipo, dados.descricao);
+  if (!triagem.valido) {
+    showToast(`Alerta bloqueado pela triagem: ${triagem.motivo}`, 'error', 5000);
+    fecharModalVozIA();
+    return;
+  }
+
   const novoAlerta = {
     tipo: dados.tipo || "Outro",
     bairro: dados.bairro,
@@ -927,7 +1043,9 @@ async function cadastrarAlertaGeradoPorIA(dados) {
     data: firebase.firestore.FieldValue.serverTimestamp(),
     contemAnexo: false,
     urlAnexo: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=150',
-    criadoPorIA: true
+    criadoPorIA: true,
+    severidade: triagem.severidade_corrigida,
+    motivoTriagem: triagem.motivo
   };
 
   db.collection("alertas").add(novoAlerta).then(() => {
@@ -944,4 +1062,177 @@ async function cadastrarAlertaGeradoPorIA(dados) {
 function fecharModalVozIA() {
   const modal = document.getElementById('modalVozIA');
   if (modal) modal.style.display = 'none';
+}
+
+function mostrarPreviewArquivoModal(event) {
+  const arquivo = event.target.files?.[0];
+  const nome = document.getElementById('nomeArquivoTexto');
+  const preview = document.getElementById('modalExpPreview');
+  if (!arquivo) return;
+
+  if (nome) nome.innerText = arquivo.name;
+  if (preview && arquivo.type.startsWith('image/')) {
+    preview.src = URL.createObjectURL(arquivo);
+    preview.style.display = 'block';
+  } else if (preview) {
+    preview.removeAttribute('src');
+    preview.style.display = 'none';
+  }
+}
+
+async function salvarAlertaModalExpandido() {
+  if (!auth.currentUser) {
+    abrirModalLogin();
+    return;
+  }
+
+  const tipo = document.getElementById('modalExpTipo').value;
+  const bairro = document.getElementById('modalExpBairro').value.trim();
+  const descricao = document.getElementById('modalExpDescricao').value.trim();
+  const arquivo = document.getElementById('modalExpArquivo').files?.[0];
+
+  if (!bairro || !descricao || !ultimaLatUsuario || !ultimaLngUsuario) {
+    alert('Selecione o local no mapa e preencha os dados do alerta.');
+    return;
+  }
+
+  const triagem = await analisarAlertaComIA(tipo, descricao);
+  if (!triagem.valido) {
+    showToast(`Alerta bloqueado pela triagem: ${triagem.motivo}`, 'error', 5000);
+    return;
+  }
+
+  const alerta = {
+    tipo,
+    bairro,
+    descricao,
+    lat: ultimaLatUsuario,
+    lng: ultimaLngUsuario,
+    data: firebase.firestore.FieldValue.serverTimestamp(),
+    contemAnexo: Boolean(arquivo),
+    severidade: triagem.severidade_corrigida,
+    motivoTriagem: triagem.motivo
+  };
+
+  try {
+    if (arquivo) {
+      const nomeSeguro = arquivo.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const referencia = firebase.storage().ref(`alertas/${auth.currentUser.uid}/${Date.now()}-${nomeSeguro}`);
+      await referencia.put(arquivo);
+      alerta.urlAnexo = await referencia.getDownloadURL();
+    }
+
+    await db.collection('alertas').add(alerta);
+    fecharModalAlertaExpandido();
+    showToast('Alerta publicado com sucesso!', 'success');
+  } catch (error) {
+    console.error('Erro ao salvar alerta:', error);
+    showToast('Não foi possível publicar o alerta.', 'error');
+  }
+}
+
+// ===================================================
+// 9. PREENCHIMENTO AUTOMÁTICO DE FORMULÁRIO COM IA (VOZ)
+// ===================================================
+
+function iniciarRelatoPorVozModal() {
+    // Verifica se o navegador suporta gravação de voz
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        alert("Seu navegador não suporta reconhecimento de voz. Tente usar o Google Chrome.");
+        return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'pt-BR';
+    recognition.start();
+
+    const btnVoz = document.getElementById('btnVozModal');
+    if (!btnVoz) return;
+    const textoOriginal = btnVoz.innerHTML;
+
+    // Efeito visual para o usuário saber que o app está ouvindo
+    btnVoz.innerHTML = '🎙️ Ouvindo... Fale o que aconteceu!';
+    btnVoz.style.backgroundColor = '#ef4444'; // Fica vermelho
+
+    // Quando o usuário terminar de falar:
+    recognition.onresult = async function(event) {
+        const transcricao = event.results[0][0].transcript;
+
+        btnVoz.innerHTML = '🧠 IA Processando Relato...';
+        btnVoz.style.backgroundColor = '#f59e0b'; // Fica laranja
+
+        // Envia o áudio transformado em texto para o Gemini preencher o form
+        await autoPreencherComIA(transcricao);
+
+        // Restaura o botão
+        btnVoz.innerHTML = textoOriginal;
+        btnVoz.style.backgroundColor = '#8b5cf6'; // Volta pro roxo
+    };
+
+    recognition.onerror = function(event) {
+        alert("Não conseguimos captar sua voz. Tente novamente.");
+        btnVoz.innerHTML = textoOriginal;
+        btnVoz.style.backgroundColor = '#8b5cf6';
+    };
+}
+
+async function autoPreencherComIA(textoFalado) {
+    // Usa a chave que o Victor já configurou no seu projeto
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+    const prompt = `
+    Você é o assistente virtual do app "Alerta Bairro" em Manaus.
+    O usuário acabou de falar o seguinte no microfone: "${textoFalado}"
+
+    Sua tarefa é extrair as informações dessa frase e montar um JSON para preencher o formulário automaticamente.
+
+    REGRAS DE EXTRAÇÃO:
+    - "tipo": Tente encaixar em uma destas categorias exatas: "Roubo", "Falta de Luz", "Alagamento", "Acidente de Trânsito", "Desaparecimento", "Incêndio". Se não souber, retorne "Outros".
+    - "bairro": Se ele falar o nome de um bairro de Manaus (ex: Parque Dez, Compensa, Alvorada), coloque aqui. Se não falar, deixe em branco "".
+    - "descricao": Melhore a frase falada pelo usuário, corrigindo pequenos erros de português, deixando claro e direto para a polícia ou comunidade ler.
+
+    Retorne APENAS um objeto JSON válido, sem crases, neste exato formato:
+    {
+      "tipo": "Nome da Categoria",
+      "bairro": "Nome do Bairro",
+      "descricao": "Texto corrigido e formatado"
+    }`;
+
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }]
+            })
+        });
+
+        const data = await response.json();
+        const textoLimpo = data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
+        const resultado = JSON.parse(textoLimpo);
+
+        // Preenche os inputs do HTML automaticamente!
+        if (resultado.tipo) {
+            const selectTipo = document.getElementById('modalExpTipo');
+            if (selectTipo) selectTipo.value = resultado.tipo;
+        }
+        if (resultado.bairro) {
+            const inputBairro = document.getElementById('modalExpBairro');
+            if (inputBairro) inputBairro.value = resultado.bairro;
+        }
+        if (resultado.descricao) {
+            const inputDescricao = document.getElementById('modalExpDescricao');
+            if (inputDescricao) inputDescricao.value = resultado.descricao;
+        }
+
+        showToast('Campos preenchidos magicamente pela IA!', 'success');
+
+    } catch (err) {
+        console.error("Erro no auto-preenchimento:", err);
+        // Se a IA falhar, pelo menos joga o texto cru na descrição para o usuário não perder o que falou
+        const inputDescricao = document.getElementById('modalExpDescricao');
+        if (inputDescricao) inputDescricao.value = textoFalado;
+        showToast('Não foi possível categorizar, mas anotamos seu relato.', 'info');
+    }
 }

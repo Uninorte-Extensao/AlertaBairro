@@ -42,7 +42,6 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapa);
 // CONFIGURAÇÃO DO FORMULÁRIO DO MAPA
 // ===================================================
 function obterPopupFormularioHTML() {
-  // CORREÇÃO: Nome da variável padronizado para "opcoesSelect"
   let opcoesSelect = `
     <option>Roubo</option>
     <option>Falta de Luz</option>
@@ -75,31 +74,23 @@ function obterPopupFormularioHTML() {
 }
 
 // ===================================================
-// OUVINTE DE CLIQUE NO MAPA (CORRIGIDO E SIMPLIFICADO)
-// ===================================================
-// Substitua o mapa.on('click') antigo por este:
-// ===================================================
-// OUVINTE DE CLIQUE NO MAPA (CORRIGIDO E SEGURO)
+// OUVINTE DE CLIQUE NO MAPA
 // ===================================================
 mapa.on('click', function(e) {
-  // 1. Se o usuário NÃO estiver logado, ele NÃO pode criar alertas
   if (!auth.currentUser) {
     abrirModalLogin();
     return;
   }
 
-  // 2. Se o usuário clicou no botão "Selecionar no Mapa" (Modo Uber)
   if (typeof selecionandoLocalManualmente !== 'undefined' && selecionandoLocalManualmente === true) {
     ultimaLatUsuario = e.latlng.lat;
     ultimaLngUsuario = e.latlng.lng;
-    selecionandoLocalManualmente = false; // Desativa o modo seleção para o próximo clique ser normal
+    selecionandoLocalManualmente = false; 
     
-    // Reabre o modal expandido trazendo a localização nova
     abrirModalAlertaExpandido();
     return;
   }
 
-  // 3. Clique Normal: Abre o popup pequeno padrão do mapa
   abrirPopupCriacaoAlerta(e.latlng.lat, e.latlng.lng);
 });
 
@@ -107,12 +98,10 @@ function abrirPopupCriacaoAlerta(lat, lng) {
   latClick = lat;
   lngClick = lng;
 
-  // Se já houver um popup aberto, fecha antes de abrir o novo
   if (ultimoPopup) {
     mapa.closePopup(ultimoPopup);
   }
 
-  // Abre a janelinha exatamente nas coordenadas do clique
   ultimoPopup = L.popup({ closeOnClick: false })
     .setLatLng([lat, lng])
     .setContent(obterPopupFormularioHTML())
@@ -150,10 +139,7 @@ function irParaAlerta(lat, lng) {
 }
 
 // ===================================================
-// 2.1 MAPA DE CALOR (CLUSTERING DE ÁREAS CRÍTICAS)
-// ===================================================
-// ===================================================
-// 2.1 MAPA DE CALOR (CLUSTERING DE ÁREAS CRÍTICAS)
+// 2.1 MAPA DE CALOR
 // ===================================================
 function gerarMapaDeCalorDinamico() {
   camadasRegiaoCalor.forEach(c => mapa.removeLayer(c));
@@ -214,18 +200,15 @@ function gerarMapaDeCalorDinamico() {
       </div>
     `;
 
-    // 1. CÍRCULO GIGANTE: Agora ele tem "interactive: false". 
-    // Isso faz os cliques "atravessarem" ele e chegarem na rua do mapa!
     const manchaRegiao = L.circle([grupo.lat, grupo.lng], {
       color: corCalor, 
       fillColor: corCalor, 
       fillOpacity: 0.18, 
       weight: 1.5, 
       radius: 600,
-      interactive: false // <-- A mágica que permite você criar o alerta
+      interactive: false
     }).addTo(mapa);
 
-    // 2. ÍCONE DE ESTATÍSTICA: Coloca o 📊 no centro do raio só para segurar as estatísticas
     const iconeGrafico = L.divIcon({
         className: 'icone-estatistica',
         html: `<div style="font-size: 22px; text-shadow: 0px 0px 4px white; cursor: pointer;">📊</div>`,
@@ -237,14 +220,13 @@ function gerarMapaDeCalorDinamico() {
         .addTo(mapa)
         .bindPopup(popupEstatistica);
 
-    // Salva os dois na memória para limpar quando a tela atualizar
     camadasRegiaoCalor.push(manchaRegiao);
     camadasRegiaoCalor.push(marcadorEstatistica);
   });
 }
 
 // ===================================================
-// 3. RECUPERAÇÃO REALTIME E FILTRAGENS VISUAIS
+// 3. RECUPERAÇÃO REALTIME E FILTRAGENS
 // ===================================================
 function verificarEDispararPushNotificacao(alerta) {
   console.log("Notificação detectada:", alerta);
@@ -285,32 +267,27 @@ function atualizarInterfaceVisívelComFiltro() {
       alertasFiltrados.forEach(alerta => {
         let cssClass = '';
         if(alerta.tipo.includes('Roubo')) cssClass = 'alerta-roubo';
-else if(alerta.tipo.includes('Luz')) cssClass = 'alerta-falta-luz';
-else if(alerta.tipo.includes('Alagamento')) cssClass = 'alerta-alagamento';
-else if(alerta.tipo.includes('Trânsito')) cssClass = 'alerta-transito';
-else if(alerta.tipo.includes('Incêndio')) cssClass = 'alerta-incendio';
-else if(alerta.tipo.includes('Obra') || alerta.tipo.includes('Manutenção')) cssClass = 'alerta-obra';
-else if(alerta.tipo.includes('Desaparecimento')) cssClass = 'alerta-desaparecimento'; // <-- ADICIONE ESTA LINHA
+        else if(alerta.tipo.includes('Luz')) cssClass = 'alerta-falta-luz';
+        else if(alerta.tipo.includes('Alagamento')) cssClass = 'alerta-alagamento';
+        else if(alerta.tipo.includes('Trânsito')) cssClass = 'alerta-transito';
+        else if(alerta.tipo.includes('Incêndio')) cssClass = 'alerta-incendio';
+        else if(alerta.tipo.includes('Obra') || alerta.tipo.includes('Manutenção')) cssClass = 'alerta-obra';
+        else if(alerta.tipo.includes('Desaparecimento')) cssClass = 'alerta-desaparecimento';
 
-        // ASSIM ESTÁ NO SEU CÓDIGO ORIGINAL:
-// COLOQUE ESTE BLOCO CORRIGIDO NO LUGAR:
-// Se o alerta tem uma URL da nuvem, usa ela. Se não tiver mas disser que tem anexo, tenta usar o nome, senão usa o padrão colorido
-let urlImagem = alerta.urlAnexo || (alerta.nomeAnexo ? alerta.nomeAnexo : 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=150');
+        let urlImagem = alerta.urlAnexo || (alerta.nomeAnexo ? alerta.nomeAnexo : 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=150');
 
-let htmlImagemDireita = '';
-// Forçamos a exibição caso exista o link direto (urlAnexo) ou o marcador antigo (contemAnexo)
-if (alerta.contemAnexo || alerta.urlAnexo) {
-  // Onde você monta o HTML, troque para isso:
-htmlImagemDireita = `
-  <div class="coluna-imagem-alerta">
-    <img src="${urlImagem}" 
-         class="foto-registro-lateral" 
-         onclick="abrirFoto('${urlImagem}')" 
-         alt="Evidência" 
-         style="cursor: pointer;">
-  </div>
-`;
-}
+        let htmlImagemDireita = '';
+        if (alerta.contemAnexo || alerta.urlAnexo) {
+          htmlImagemDireita = `
+            <div class="coluna-imagem-alerta">
+              <img src="${urlImagem}" 
+                   class="foto-registro-lateral" 
+                   onclick="abrirFoto('${urlImagem}')" 
+                   alt="Evidência" 
+                   style="cursor: pointer;">
+            </div>
+          `;
+        }
 
         lista.innerHTML += `
         <div class="alerta-card ${cssClass} ${alerta.contemAnexo ? 'com-foto' : ''}" onclick="irParaAlerta(${alerta.lat}, ${alerta.lng})" style="cursor: pointer;">
@@ -356,7 +333,7 @@ function filtrarAlertasPorTipo(tipo, botaoClicado) {
 }
 
 // ===================================================
-// 4. SISTEMA DE AUTENTICAÇÃO E PERFIL
+// 4. AUTENTICAÇÃO E PERFIL
 // ===================================================
 function login() {
   const email = document.getElementById('email').value;
@@ -378,13 +355,11 @@ function loginComGoogle() {
 function loginExitosa() {
   fecharModalLogin();
   
-  // Exibe a estrutura do sistema principal
   const sistema = document.getElementById('sistema');
   if (sistema) sistema.style.display = 'block';
   
   document.body.classList.remove('tela-autenticacao'); 
   
-  // Altera os botões de Login / Perfil na barra de navegação
   const btnLogin = document.getElementById('btnNavLogin');
   const btnPerfil = document.getElementById('btnNavPerfil');
   if (btnLogin) btnLogin.style.display = 'none';
@@ -397,11 +372,9 @@ function loginExitosa() {
 }
 
 function sair() {
-  // Fecha o menu de perfil se estiver aberto
   const menuPerfil = document.getElementById('menuFlutuantePerfil');
   if (menuPerfil) menuPerfil.style.display = 'none';
   
-  // Limpa o radar se estiver ativo antes de deslogar
   if (radarAtivo && idRastreio) {
     navigator.geolocation.clearWatch(idRastreio);
     idRastreio = null;
@@ -411,7 +384,6 @@ function sair() {
     circuloRadar = null;
   }
 
-  // Faz o logout no Firebase
   auth.signOut().catch(err => console.error("Erro ao deslogar:", err));
 }
 
@@ -443,7 +415,6 @@ function fecharModalLogin() {
   m.addEventListener('transitionend', remover);
 }
 function toggleMenuPerfil(e) { e.stopPropagation(); const m = document.getElementById('menuFlutuantePerfil'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; }
-function gerenciarFluxoDeEntrada() { if (!localStorage.getItem('alertaBairroJaAcessou')) { localStorage.setItem('alertaBairroJaAcessou', 'true'); mostrarPagina('inicio'); } else { mostrarPagina('mapaPagina'); } }
 
 function atualizarDadosPerfilTela(user) {
   if (user) {
@@ -453,7 +424,6 @@ function atualizarDadosPerfilTela(user) {
   }
 }
 
-// Adicione isso ao seu script.js para fechar ao clicar na imagem ampliada
 document.addEventListener('click', (e) => {
   const ampliada = document.querySelector('.foto-registro-lateral.ampliada');
   if (ampliada && !e.target.classList.contains('ampliada')) {
@@ -462,7 +432,7 @@ document.addEventListener('click', (e) => {
 });
 
 // ===================================================
-// 5. SONAR / GEOLOCALIZAÇÃO ATIVA
+// 5. SONAR / GEOLOCALIZAÇÃO
 // ===================================================
 function iniciarRadar() {
   if (!auth.currentUser) { abrirModalLogin(); return; }
@@ -491,15 +461,14 @@ function iniciarRastreio() {
       }
 
       if (radarAtivo) {
-        // CORRIGIDO: Agora usando latitude e longitude reais do rastreio
         if (circuloRadar) {
           circuloRadar.setLatLng([latitude, longitude]);
           circuloRadar.setRadius(500);
         } else {
           circuloRadar = L.circle([latitude, longitude], {
             radius: 500,
-            color: '#0284c7',       // Borda Azul Escuro do Radar
-            fillColor: '#38bdf8',   // Preenchimento Azul Claro
+            color: '#0284c7',
+            fillColor: '#38bdf8',
             fillOpacity: 0.15,
             weight: 2
           }).addTo(mapa);
@@ -526,86 +495,51 @@ function calcularNivelPerigo() {
 
     let nivelPerigo = 0; 
     let alertasCriticos = alertasProximos.filter(a => a.dist <= 250).length; 
-    let alertasProximidade = alertasProximos.filter(a => a.dist > 250 && a.dist <= 400).length; 
-    let alertasDistancia = alertasProximos.filter(a => a.dist > 400).length; 
 
-    // NOVO: Forçamos nível de perigo se houver qualquer Roubo no perímetro
     const temRouboPerto = alertasProximos.some(a => a.tipo.toLowerCase().includes('roubo'));
 
     if (alertasCriticos >= 3 || totalAlertas >= 8 || temRouboPerto) {
-        nivelPerigo = 2; // Força o estado crítico (Caixa Vermelha) se houver roubo próximo!
+        nivelPerigo = 2; 
     } else if (alertasCriticos >= 2 || (alertasProximos.length >= 5 && alertasProximos.some(a => a.dist <= 250)) || totalAlertas >= 5) {
         nivelPerigo = 1; 
     } else if (totalAlertas > 0) {
         nivelPerigo = 0; 
     }
 
-    return { nivelPerigo, totalAlertas, alertasProximos, alertasCriticos, alertasProximidade };
+    return { nivelPerigo, totalAlertas, alertasProximos };
 }
 
 function verificarAlertasProximos() {
     const container = document.getElementById('containerAlertasProximidade');
     if (!container) return; container.innerHTML = '';
 
-    const { nivelPerigo, totalAlertas, alertasProximos, alertasCriticos } = calcularNivelPerigo();
+    const { nivelPerigo, totalAlertas, alertasProximos } = calcularNivelPerigo();
 
-    // Customização dinâmica das cores de segurança do perímetro
-    // SUBSTITUA APENAS O DICIONÁRIO "CORES" DENTRO DE verificarAlertasProximos():
     const cores = {
-        0: { radarColor: '#22c55e', radarFill: '#86efac', statusBg: '#dcfce7', statusText: '#166534', emoji: '✅', titulo: 'Perímetro Seguro', detalhe: 'Nenhuma ou poucas atividades suspeitas próximas.' },
-        1: { radarColor: '#eab308', radarFill: '#fef08a', statusBg: '#fef3c7', statusText: '#a16207', emoji: '⚠️', titulo: 'Ameaça Detectada', detalhe: `${totalAlertas} alerta(s) próximo(s)` },
-        2: { radarColor: '#ef4444', radarFill: '#fca5a5', statusBg: '#fee2e2', statusText: '#7f1d1d', emoji: '⚠️', titulo: 'Perímetro em Alerta', detalhe: 'Atenção! Foram detectadas atividades suspeitas ou crimes recentes a menos de 500m.' }
+        0: { radarColor: '#22c55e', statusBg: '#dcfce7', statusText: '#166534', titulo: 'Perímetro Seguro', detalhe: 'Nenhuma atividade suspeita próxima.' },
+        1: { radarColor: '#eab308', statusBg: '#fef3c7', statusText: '#a16207', titulo: 'Ameaça Detectada', detalhe: `${totalAlertas} alerta(s) próximo(s)` },
+        2: { radarColor: '#ef4444', statusBg: '#fee2e2', statusText: '#7f1d1d', titulo: 'Perímetro em Alerta', detalhe: 'Incidentes recentes detectados a menos de 500m.' }
     };
 
     const corConfig = cores[nivelPerigo];
 
-    if (circuloRadar) {
-        // Mantém o círculo azul do radar para não poluir visualmente o mapa, mudando só a pulsação
-        const radarElement = circuloRadar._path;
-        if (radarElement) {
-            if (nivelPerigo === 2) {
-                radarElement.classList.add('radar-critico-pulse');
-            } else if (nivelPerigo === 1) {
-                radarElement.classList.add('radar-aviso-pulse');
-            } else {
-                radarElement.classList.remove('radar-critico-pulse', 'radar-aviso-pulse');
-            }
-        }
-    }
-
-    // Buscando as tags do seu HTML dinamicamente (por ID ou classe do painel)
-    const txtRadar = document.getElementById('textoRadar') || document.querySelector('.radar-status-box');
-    const txtDet = document.getElementById('detalheRadar') || document.querySelector('.radar-descricao');
-    const divS = document.getElementById('statusRadar') || document.querySelector('.radar-status-box');
+    const txtRadar = document.getElementById('textoRadar');
+    const txtDet = document.getElementById('detalheRadar');
+    const divS = document.getElementById('statusRadar');
 
     if (divS) {
         divS.style.background = corConfig.statusBg;
         divS.style.color = corConfig.statusText;
         divS.style.borderColor = corConfig.radarColor;
-        
-        // Se for a caixa principal, mudamos o HTML interno dela
-        if(divS.classList.contains('radar-status-box') || divS.id === 'statusRadar') {
-          divS.innerHTML = corConfig.titulo;
-        }
     }
     
-    if (txtRadar && txtRadar !== divS) {
-        txtRadar.style.color = corConfig.statusText;
-        txtRadar.innerText = corConfig.titulo;
-    }
-    if (txtDet) {
-        txtDet.innerText = corConfig.detalhe;
-        txtDet.style.color = corConfig.statusText;
-    }
+    if (txtRadar) { txtRadar.innerText = corConfig.titulo; txtRadar.style.color = corConfig.statusText; }
+    if (txtDet) { txtDet.innerText = corConfig.detalhe; txtDet.style.color = corConfig.statusText; }
 
     alertasProximos.slice(0, 3).forEach(alerta => {
         const iconEmoji = alerta.dist < 250 ? '🔴' : '🟡';
         container.innerHTML += `<div style="color: #7f1d1d; font-weight: bold; margin-top: 6px; font-size: 11px;">${iconEmoji} ${alerta.tipo} - ${Math.round(alerta.dist)}m</div>`;
     });
-
-    if (totalAlertas > 3) {
-        container.innerHTML += `<div style="color: #7f1d1d; font-size: 10px; margin-top: 6px; font-style: italic;">+${totalAlertas - 3} alerta(s) mais</div>`;
-    }
 }
 
 function centrarEmMim() {
@@ -613,21 +547,15 @@ function centrarEmMim() {
 }
 
 // ===================================================
-// 6. NAVEGAÇÃO E SALVAMENTO DE ALERTAS
+// 6. NAVEGAÇÃO E ALERTAS MANUAIS
 // ===================================================
 function mostrarPagina(id){
   const paginas = document.querySelectorAll('.pagina');
-  
-  // Remove a classe ativa de todas as telas (efeito de saída instantâneo)
   paginas.forEach(p => p.classList.remove('ativa'));
   
-  // Adiciona a classe na tela certa (dispara a animação sutil de entrada)
   const alvo = document.getElementById(id);
-  if (alvo) {
-    alvo.classList.add('ativa');
-  }
+  if (alvo) alvo.classList.add('ativa');
   
-  // Mantém os ajustes originais do mapa e carrosséis do seu projeto
   const containerCarrosseis = document.querySelector('.container-carrosseis');
   if(id === 'mapaPagina') {
     if (containerCarrosseis) containerCarrosseis.style.display = 'none'; 
@@ -669,29 +597,14 @@ async function detectarBairro(lat, lng){
 }
 
 auth.onAuthStateChanged((user) => {
-  const loginPage = document.getElementById('loginPage');
-  const sistema = document.getElementById('sistema');
-
   if (user) { 
-    // ==========================================
-    // USUÁRIO CADASTRADO / LOGADO -> DIRETO PRO MAPA
-    // ==========================================
     loginExitosa(); 
     mostrarPagina('mapaPagina'); 
   } else { 
-    // ==========================================
-    // USUÁRIO NÃO LOGADO / SAIU -> BOAS-VINDAS
-    // ==========================================
-    // Esconde os dados de perfil da navbar se houver
     const btnLogin = document.getElementById('btnNavLogin');
     const btnPerfil = document.getElementById('btnNavPerfil');
     if (btnLogin) btnLogin.style.display = 'block';
     if (btnPerfil) btnPerfil.style.display = 'none';
-    
-    // Garante que o modal de login não fique travado aberto no meio da tela
-    if (loginPage) loginPage.style.display = 'none';
-    
-    // Redireciona de forma limpa para a tela de início (boas-vindas)
     mostrarPagina('inicio'); 
   }
 });
@@ -715,11 +628,8 @@ function renderizarCarrosselComunitario() {
   });
 }
 
-const btnCen = document.getElementById('btnCentralizar');
-if (btnCen) btnCen.addEventListener('mousedown', (e) => e.stopPropagation());
-
 // ===================================================
-// 7. MÓDULO DO NOVO MODAL EXPANDIDO DE CRIAR ALERTA
+// 7. MODAL EXPANDIDO DE CRIAR ALERTA
 // ===================================================
 function gatilhoBotaoAlertaExpandido() {
   if (!auth.currentUser) { abrirModalLogin(); return; }
@@ -729,20 +639,6 @@ function gatilhoBotaoAlertaExpandido() {
 function abrirModalAlertaExpandido() {
   const m = document.getElementById('modalAlertaExpandido'); if (!m) return;
   
-  setTimeout(() => {
-    const tipoSelect = document.getElementById('modalExpTipo');
-    if (tipoSelect) {
-      if (![...tipoSelect.options].some(o => o.value === 'Desaparecimento')) {
-        const opt = document.createElement('option');
-        opt.value = 'Desaparecimento';
-        opt.innerHTML = 'Desaparecimento';
-        tipoSelect.appendChild(opt);
-      }
-      tipoSelect.addEventListener('change', gerenciarExibicaoCampoImagem);
-    }
-    gerenciarExibicaoCampoImagem();
-  }, 100);
-
   if (ultimaLatUsuario && ultimaLngUsuario) {
     fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${ultimaLatUsuario}&lon=${ultimaLngUsuario}`)
       .then(res => res.json()).then(d => {
@@ -759,96 +655,6 @@ function fecharModalAlertaExpandido() {
   m.classList.remove('open');
   const remover = () => { m.style.display = 'none'; m.removeEventListener('transitionend', remover); };
   m.addEventListener('transitionend', remover);
-  if(document.getElementById('modalExpBairro')) document.getElementById('modalExpBairro').value = '';
-  if(document.getElementById('modalExpDescricao')) document.getElementById('modalExpDescricao').value = '';
-  if(document.getElementById('modalExpArquivo')) document.getElementById('modalExpArquivo').value = '';
-  if(document.getElementById('nomeArquivoTexto')) document.getElementById('nomeArquivoTexto').innerText = 'Nenhum arquivo selecionado';
-  const prev = document.getElementById('modalExpPreview'); if (prev) { prev.src = ''; prev.style.display = 'none'; }
-}
-
-function mostrarPreviewArquivoModal(e) {
-  const input = e.target || document.getElementById('modalExpArquivo');
-  const nomeTxt = document.getElementById('nomeArquivoTexto');
-  const preview = document.getElementById('modalExpPreview');
-  if (!input || !input.files || input.files.length === 0) {
-    if (nomeTxt) nomeTxt.innerText = 'Nenhum arquivo selecionado';
-    if (preview) { preview.src = ''; preview.style.display = 'none'; }
-    return;
-  }
-  const file = input.files[0];
-  if (nomeTxt) nomeTxt.innerText = file.name;
-  if (file.type && file.type.startsWith('image/') && preview) {
-    const reader = new FileReader();
-    reader.onload = function(ev) {
-      preview.src = ev.target.result;
-      preview.style.display = 'block';
-    };
-    reader.readAsDataURL(file);
-  } else {
-    if (preview) { preview.src = ''; preview.style.display = 'none'; }
-  }
-}
-
-function salvarAlertaModalExpandido() {
-  const tipo = document.getElementById('modalExpTipo').value;
-  const bairro = document.getElementById('modalExpBairro').value;
-  const descricao = document.getElementById('modalExpDescricao').value;
-  const arq = document.getElementById('modalExpArquivo');
-
-  if (!bairro || !descricao) return alert('Por favor, preencha todos os campos obrigatórios.');
-  
-  let lat = ultimaLatUsuario || mapa.getCenter().lat;
-  let lng = ultimaLngUsuario || mapa.getCenter().lng;
-
-  function salvarNoFirestore(urlDaFoto) {
-    db.collection("alertas").add({
-      tipo, 
-      bairro, 
-      descricao, 
-      lat, 
-      lng,
-      data: firebase.firestore.FieldValue.serverTimestamp(),
-      contemAnexo: urlDaFoto ? true : false,
-      urlAnexo: urlDaFoto || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=150',
-      aprovado: false
-    }).then(() => { 
-      fecharModalAlertaExpandido(); 
-      showToast('Alerta publicado com sucesso!', 'success'); 
-    }).catch((error) => {
-      console.error("Erro ao salvar:", error);
-      alert("Ocorreu um erro ao salvar o alerta.");
-    });
-  }
-
-  if (arq && arq.files.length > 0) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      const fotoEmTexto = e.target.result;
-      salvarNoFirestore(fotoEmTexto);
-    };
-    reader.readAsDataURL(arq.files[0]);
-  } else {
-    salvarNoFirestore(null);
-  }
-}
-
-function gerenciarExibicaoCampoImagem() {
-  const tipoSelect = document.getElementById('modalExpTipo');
-  const blocoEvidencia = document.getElementById('blocoEvidencia');
-  const campoArquivo = document.getElementById('modalExpArquivo');
-  const previewImagem = document.getElementById('modalExpPreview');
-  const textoArquivo = document.getElementById('nomeArquivoTexto');
-  
-  if (tipoSelect && blocoEvidencia) {
-    if (tipoSelect.value === 'Desaparecimento') {
-      blocoEvidencia.style.display = 'block';
-    } else {
-      blocoEvidencia.style.display = 'none';
-      if (campoArquivo) campoArquivo.value = ''; 
-      if (previewImagem) previewImagem.style.display = 'none';
-      if (textoArquivo) textoArquivo.textContent = 'Nenhum arquivo selecionado';
-    }
-  }
 }
 
 let selecionandoLocalManualmente = false;
@@ -859,14 +665,283 @@ function iniciarSelecaoManualMapa() {
   showToast('Toque no mapa para escolher o local do alerta', 'info', 4000);
 }
 
-function fecharFoto() {
-  document.querySelector('.foto-registro-lateral.ampliada')?.classList.remove('ampliada');
-  document.querySelector('.overlay-ampliado').style.display = 'none';
-}
 function abrirFoto(url) {
   const modal = document.getElementById('modal-imagem-global');
   const imgConteudo = document.getElementById('imagem-ampliada-conteudo');
-  
-  imgConteudo.src = url; // Define a imagem que foi clicada
-  modal.style.display = 'flex'; // Mostra o modal na tela
+  imgConteudo.src = url; 
+  modal.style.display = 'flex'; 
+}
+
+// ===================================================
+// 8. TRIAGEM POR VOZ E PROCESSAMENTO DE IA (GEMINI)
+// ===================================================
+const GEMINI_API_KEY = "SUA_CHAVE_GEMINI_AQUI";
+
+let mediaRecorderIA = null;
+let audioChunksIA = [];
+let gravandoIA = false;
+
+// Efeito de digitação visual em tempo real
+function digitarTextoEfeito(texto, elemento, velocidade = 20) {
+  return new Promise((resolve) => {
+    elemento.innerText = "";
+    let i = 0;
+    const timer = setInterval(() => {
+      elemento.innerText += texto.charAt(i);
+      i++;
+      if (i >= texto.length) {
+        clearInterval(timer);
+        resolve();
+      }
+    }, velocidade);
+  });
+}
+
+// Geolocaliza especificamente o bairro citado em Manaus
+async function buscarCoordenadasBairroManaus(bairro) {
+  try {
+    const consulta = `${bairro}, Manaus, Amazonas, Brasil`;
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(consulta)}&format=json&limit=1`);
+    const dados = await res.json();
+
+    if (dados && dados.length > 0) {
+      return {
+        lat: parseFloat(dados[0].lat),
+        lng: parseFloat(dados[0].lon),
+        nomeOficial: dados[0].display_name.split(',')[0] || bairro
+      };
+    }
+    return null;
+  } catch (err) {
+    console.error("Erro ao buscar coordenadas do bairro:", err);
+    return null;
+  }
+}
+
+// Tradutor de erros para linguagem amigável
+function obterMensagemErroAmigavel(error) {
+  const textoErro = error?.message || String(error);
+
+  if (textoErro.includes("503") || textoErro.includes("UNAVAILABLE") || textoErro.includes("high demand")) {
+    return "O servidor de inteligência está em alta demanda. Tente novamente em alguns segundos.";
+  }
+  if (textoErro.includes("404") || textoErro.includes("NOT_FOUND")) {
+    return "Serviço de análise de voz indisponível temporariamente.";
+  }
+  if (textoErro.includes("JSON") || textoErro.includes("parse")) {
+    return "Não conseguimos entender os detalhes do relato. Grave novamente falando mais devagar.";
+  }
+  return "Não foi possível concluir a análise do áudio. Verifique sua conexão e tente novamente.";
+}
+
+function alternarGravacaoVozIA() {
+  if (!auth.currentUser) {
+    abrirModalLogin();
+    return;
+  }
+  if (!gravandoIA) {
+    iniciarGravacaoVozIA();
+  } else {
+    pararGravacaoVozIA();
+  }
+}
+
+async function iniciarGravacaoVozIA() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorderIA = new MediaRecorder(stream);
+    audioChunksIA = [];
+
+    mediaRecorderIA.ondataavailable = (event) => {
+      if (event.data.size > 0) audioChunksIA.push(event.data);
+    };
+
+    mediaRecorderIA.onstop = async () => {
+      const audioBlob = new Blob(audioChunksIA, { type: mediaRecorderIA.mimeType || 'audio/webm' });
+      const base64Audio = await converterBlobParaBase64(audioBlob);
+      await processarAudioComGemini(base64Audio, mediaRecorderIA.mimeType || 'audio/webm');
+    };
+
+    mediaRecorderIA.start();
+    gravandoIA = true;
+
+    const modal = document.getElementById('modalVozIA');
+    const icone = document.getElementById('iconeVozIA');
+    const titulo = document.getElementById('tituloVozIA');
+    const subtitulo = document.getElementById('subtituloVozIA');
+    const btnAcao = document.getElementById('btnAcaoVozIA');
+    const caixaLive = document.getElementById('caixaAnaliseLive');
+
+    if (modal) modal.style.display = 'block';
+    if (caixaLive) caixaLive.style.display = 'none';
+    if (icone) icone.classList.add('gravando');
+    if (titulo) titulo.innerText = "Escutando seu relato...";
+    if (subtitulo) subtitulo.innerText = "Fale o tipo de incidente e OBRIGATORIAMENTE o bairro/local.";
+    if (btnAcao) {
+      btnAcao.innerText = "⏹️ Finalizar";
+      btnAcao.style.display = 'block';
+    }
+
+  } catch (err) {
+    console.error("Erro de microfone:", err);
+    alert("Permissão de microfone negada ou não encontrada.");
+  }
+}
+
+function pararGravacaoVozIA() {
+  if (mediaRecorderIA && gravandoIA) {
+    mediaRecorderIA.stop();
+    mediaRecorderIA.stream.getTracks().forEach(track => track.stop());
+    gravandoIA = false;
+
+    const icone = document.getElementById('iconeVozIA');
+    const titulo = document.getElementById('tituloVozIA');
+    const subtitulo = document.getElementById('subtituloVozIA');
+    const btnAcao = document.getElementById('btnAcaoVozIA');
+
+    if (icone) icone.classList.remove('gravando');
+    if (titulo) titulo.innerText = "✨ Processando relato...";
+    if (subtitulo) subtitulo.innerText = "Iniciando comunicação com a inteligência artificial...";
+    if (btnAcao) btnAcao.style.display = 'none';
+  }
+}
+
+function converterBlobParaBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result.split(',')[1];
+      resolve(base64String);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function processarAudioComGemini(base64Audio, mimeType) {
+  const promptSistema = `
+    Você é a IA de triagem de segurança comunitária do Alerta Bairro em Manaus.
+    Escute o áudio e extraia estritamente um JSON no seguinte formato:
+    {
+      "tipo": "Roubo" | "Falta de Luz" | "Alagamento" | "Acidente de Trânsito" | "Desaparecimento" | "Incêndio",
+      "descricao": "resumo claro do ocorrido baseado na fala",
+      "bairro_mencionado": "nome do bairro ou rua em Manaus se foi falado explicitamente no áudio, ou null se NÃO foi informado o local"
+    }
+    Atenção: Se o usuário não disser o nome do bairro, rua ou ponto de referência, defina "bairro_mencionado" estritamente como null.
+    Responda APENAS o JSON puro, sem marcações markdown.
+  `;
+
+  const caixaLive = document.getElementById('caixaAnaliseLive');
+  const textoLive = document.getElementById('textoAnaliseLive');
+
+  if (caixaLive) caixaLive.style.display = 'block';
+
+  try {
+    // Etapa 1: Imersão visual
+    if (textoLive) textoLive.innerText = "🎙️ Analisando áudio enviado...";
+    await new Promise(r => setTimeout(r, 600));
+
+    // Etapa 2: Requisição à IA
+    if (textoLive) textoLive.innerText = "🧠 Identificando tipo de ocorrência e localização...";
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { inlineData: { mimeType: mimeType.split(';')[0], data: base64Audio } },
+            { text: promptSistema }
+          ]
+        }]
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      throw new Error(data.error.message || "Erro no servidor Gemini");
+    }
+
+    const textoResposta = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const jsonLimpo = textoResposta.replace(/```json/g, '').replace(/```/g, '').trim();
+    const dadosOcorrencia = JSON.parse(jsonLimpo);
+
+    // Validação de bairro: Se não falou onde foi, descarta a criação e avisa
+    if (!dadosOcorrencia.bairro_mencionado || dadosOcorrencia.bairro_mencionado === "null") {
+      if (textoLive) textoLive.innerText = "⚠️ Localização não identificada no seu áudio.";
+      showToast("Por favor, informe o bairro ou local da ocorrência ao gravar o relato.", "error", 4500);
+      setTimeout(() => { fecharModalVozIA(); }, 2500);
+      return;
+    }
+
+    // Etapa 3: Mapeamento Geográfico no OpenStreetMap
+    if (textoLive) textoLive.innerText = `📍 Localizando "${dadosOcorrencia.bairro_mencionado}" no mapa de Manaus...`;
+    
+    const geoLocal = await buscarCoordenadasBairroManaus(dadosOcorrencia.bairro_mencionado);
+
+    if (!geoLocal) {
+      if (textoLive) textoLive.innerText = "⚠️ Bairro não encontrado na região.";
+      showToast(`Não localizamos "${dadosOcorrencia.bairro_mencionado}" em Manaus. Tente citar o bairro novamente.`, "error", 4500);
+      setTimeout(() => { fecharModalVozIA(); }, 2500);
+      return;
+    }
+
+    // Etapa 4: Exibição da transcrição digitada
+    if (textoLive) textoLive.innerText = "✨ Finalizando registro do alerta...";
+
+    const resumoVisual = `🚨 Tipo: ${dadosOcorrencia.tipo}\n📍 Local: ${geoLocal.nomeOficial}\n📝 Relato: "${dadosOcorrencia.descricao}"`;
+    await digitarTextoEfeito(resumoVisual, textoLive, 15);
+
+    setTimeout(async () => {
+      await cadastrarAlertaGeradoPorIA({
+        tipo: dadosOcorrencia.tipo,
+        descricao: dadosOcorrencia.descricao,
+        bairro: geoLocal.nomeOficial,
+        lat: geoLocal.lat,
+        lng: geoLocal.lng
+      });
+      if (caixaLive) caixaLive.style.display = 'none';
+    }, 1200);
+
+  } catch (error) {
+    console.error("Erro na integração com Gemini:", error);
+    const mensagemHumana = obterMensagemErroAmigavel(error);
+    
+    if (textoLive) textoLive.innerText = `❌ ${mensagemHumana}`;
+    showToast(mensagemHumana, "error", 4000);
+    
+    setTimeout(() => { fecharModalVozIA(); }, 3000);
+  }
+}
+
+async function cadastrarAlertaGeradoPorIA(dados) {
+  const novoAlerta = {
+    tipo: dados.tipo || "Outro",
+    bairro: dados.bairro,
+    descricao: `[Relato por Voz IA] ${dados.descricao}`,
+    lat: dados.lat,
+    lng: dados.lng,
+    data: firebase.firestore.FieldValue.serverTimestamp(),
+    contemAnexo: false,
+    urlAnexo: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=150',
+    criadoPorIA: true
+  };
+
+  db.collection("alertas").add(novoAlerta).then(() => {
+    fecharModalVozIA();
+    showToast(`🚨 Alerta em ${novoAlerta.bairro} publicado no mapa!`, 'success');
+    mapa.flyTo([dados.lat, dados.lng], 16, { animate: true });
+  }).catch((err) => {
+    console.error("Erro ao salvar alerta:", err);
+    showToast("Erro ao registrar o alerta no banco de dados.", "error");
+    fecharModalVozIA();
+  });
+}
+
+function fecharModalVozIA() {
+  const modal = document.getElementById('modalVozIA');
+  if (modal) modal.style.display = 'none';
 }

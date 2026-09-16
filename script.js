@@ -34,6 +34,7 @@ let camadasRegiaoCalor = [];
 let latClick = null, lngClick = null; 
 let nivelAcessoUsuarioAtual = "comum"; 
 let ultimoPopup = null; 
+let perfilAnonimoAtual = false;
 
 const mapa = L.map('mapa', { attributionControl: false }).setView([-3.1190, -60.0217], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapa);
@@ -68,6 +69,12 @@ function obterPopupFormularioHTML() {
         ${opcoesSelect}
       </select>
       <input type="text" id="popupBairro" placeholder="Buscando bairro..." readonly style="padding:4px; font-size:11px; margin-top:4px; width:100%;">
+      <select id="popupUrgencia" style="padding:4px; font-size:11px; margin-top:4px; width:100%; border:1px solid #ef4444; color:#b91c1c; font-weight:600;">
+        <option value="BAIXA">🟢 Perigo baixo</option>
+        <option value="MEDIA" selected>🟡 Perigo médio</option>
+        <option value="ALTA">🟠 Perigo alto</option>
+        <option value="CRITICA">🔴 Emergência crítica</option>
+      </select>
       <textarea id="popupDescricao" rows="2" placeholder="Descreva o incidente..." style="padding:4px; font-size:11px; margin-top:4px; width:100%;"></textarea>
       <button onclick="salvarAlertaMapa()" style="margin-top:6px; padding:6px; width:100%; background:#D9383A; color:white; border:none; border-radius:4px; font-weight:600; cursor:pointer;">Salvar Alerta</button>
     </div>`;
@@ -77,6 +84,9 @@ function obterPopupFormularioHTML() {
 // OUVINTE DE CLIQUE NO MAPA
 // ===================================================
 mapa.on('click', function(e) {
+  const menuPerfil = document.getElementById('menuFlutuantePerfil');
+  if (menuPerfil) menuPerfil.style.display = 'none';
+
   if (!auth.currentUser) {
     abrirModalLogin();
     return;
@@ -404,6 +414,7 @@ function loginExitosa() {
   const user = auth.currentUser;
   if (user) { 
     atualizarDadosPerfilTela(user); 
+    carregarPreferenciasPerfil(user);
   }
 }
 
@@ -421,6 +432,7 @@ function sair() {
   }
 
   auth.signOut().catch(err => console.error("Erro ao deslogar:", err));
+  perfilAnonimoAtual = false;
 }
 
 function criarConta() {
@@ -604,10 +616,12 @@ function mostrarPagina(id){
 async function salvarAlertaMapa(){
   const tipo = document.getElementById('popupTipo').value;
   const bairro = document.getElementById('popupBairro').value;
+  const urgenciaUsuario = document.getElementById('popupUrgencia').value;
   const descricao = document.getElementById('popupDescricao').value;
-  if(!bairro || !descricao) return alert('Preencha os dados.');
+  if(!bairro || !descricao.trim()) return alert('Preencha os dados.');
 
-  const triagem = await analisarAlertaComIA(tipo, descricao);
+  showToast('Analisando alerta com Inteligência Artificial...', 'info', 3000);
+  const triagem = await analisarAlertaComIA(tipo, descricao.trim(), urgenciaUsuario);
   if (!triagem.valido) {
     showToast(`Alerta bloqueado pela triagem: ${triagem.motivo}`, 'error', 5000);
     return;
@@ -618,6 +632,10 @@ async function salvarAlertaMapa(){
     lat: latClick || mapa.getCenter().lat, 
     lng: lngClick || mapa.getCenter().lng,
     data: firebase.firestore.FieldValue.serverTimestamp(),
+    uidUsuario: auth.currentUser.uid,
+    anonimo: perfilAnonimoAtual,
+    autorPublico: perfilAnonimoAtual ? 'Anônimo' : (auth.currentUser.displayName || 'Usuário da Comunidade'),
+    urgenciaAlegada: urgenciaUsuario,
     severidade: triagem.severidade_corrigida,
     motivoTriagem: triagem.motivo
   };
@@ -679,6 +697,9 @@ function renderizarCarrosselComunitario() {
 // 7. MODAL EXPANDIDO DE CRIAR ALERTA
 // ===================================================
 function gatilhoBotaoAlertaExpandido() {
+  const menuPerfil = document.getElementById('menuFlutuantePerfil');
+  if (menuPerfil) menuPerfil.style.display = 'none';
+
   if (!auth.currentUser) { abrirModalLogin(); return; }
   abrirModalAlertaExpandido();
 }
@@ -719,14 +740,11 @@ function abrirFoto(url) {
   modal.style.display = 'flex'; 
 }
 
-// ===================================================
-// 8. TRIAGEM POR VOZ E PROCESSAMENTO DE IA (GEMINI)
-// ===================================================
 
 // ===================================================
 // 8. INTEGRAÇÃO COM INTELIGÊNCIA ARTIFICIAL (GEMINI)
 // ===================================================
-async function analisarAlertaComIA(tipo, descricao) {
+async function analisarAlertaComIA(tipo, descricao, urgenciaUsuario = 'NAO INFORMADA') {
     // A chave já está pegando da variável global que o Victor criou
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
@@ -737,17 +755,19 @@ async function analisarAlertaComIA(tipo, descricao) {
     DADOS DO ALERTA:
     - Categoria: "${tipo}"
     - Descrição: "${descricao}"
+    - Nível de urgência alegado pelo usuário: "${urgenciaUsuario}"
 
     ESCALA DE PRIORIDADE OFICIAL (ESCOLHA APENAS UMA):
     - CRITICA: Risco imediato à vida ou desastre (ex: tiroteio, desabamento, enchente grave).
     - ALTA: Risco à segurança ou infraestrutura (ex: assalto à mão armada, fio de alta tensão rompido no meio da rua).
     - MEDIA: Transtorno que exige atenção (ex: falta de luz no quarteirão, buraco muito grande, acidente sem vítimas).
     - BAIXA: Problemas menores (ex: lixo acumulado, som alto, animal de rua).
-    - TROTE: Relatos absurdos, objetos inanimados ou falso pânico (ex: "perdi meu bebê reborn", "meu boneco sumiu", "roubaram meu coração", xingamentos).
+    - TROTE: Relatos absurdos, objetos inanimados, brinquedos ou falso pânico (ex: "perdi meu bebê reborn", "meu boneco sumiu", "roubaram meu coração", xingamentos).
 
     A REGRA DE OURO (OBRIGATÓRIO):
-    1. Se a classificação for TROTE (como o sumiço de bonecos/bebê reborn), você DEVE retornar "valido": false.
-    2. Para qualquer ocorrência real (CRITICA, ALTA, MEDIA, BAIXA), retorne "valido": true.
+    1. Compare a urgência alegada com os fatos da descrição. Não aceite automaticamente a classificação escolhida pelo usuário.
+    2. Se a descrição for um trote, uma piada ou tratar de objeto inanimado/brinquedo como se fosse uma emergência humana, retorne "valido": false e ignore a urgência alegada.
+    3. Se o relato for real, retorne "valido": true e corrija "severidade_corrigida" para a prioridade justa, mesmo que o usuário tenha exagerado ou minimizado o risco.
 
     Retorne APENAS um JSON válido, sem crases (sem \`\`\`json), neste exato formato:
     {
@@ -784,7 +804,7 @@ async function analisarAlertaComIA(tipo, descricao) {
         return { valido: false, severidade_corrigida: "MEDIA", motivo: "A triagem está indisponível. Tente novamente." };
     }
 }
-const GEMINI_API_KEY = "SAQ.Ab8RN6L-J9NftuNSZSl2i95rw17IMVMaXUJ48oohKKbIHWFkTQ";
+const GEMINI_API_KEY = "sua chave";
 
 let mediaRecorderIA = null;
 let audioChunksIA = [];
@@ -1041,6 +1061,9 @@ async function cadastrarAlertaGeradoPorIA(dados) {
     lat: dados.lat,
     lng: dados.lng,
     data: firebase.firestore.FieldValue.serverTimestamp(),
+    uidUsuario: auth.currentUser.uid,
+    anonimo: perfilAnonimoAtual,
+    autorPublico: perfilAnonimoAtual ? 'Anônimo' : (auth.currentUser.displayName || 'Usuário da Comunidade'),
     contemAnexo: false,
     urlAnexo: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=150',
     criadoPorIA: true,
@@ -1109,6 +1132,9 @@ async function salvarAlertaModalExpandido() {
     lat: ultimaLatUsuario,
     lng: ultimaLngUsuario,
     data: firebase.firestore.FieldValue.serverTimestamp(),
+    uidUsuario: auth.currentUser.uid,
+    anonimo: perfilAnonimoAtual,
+    autorPublico: perfilAnonimoAtual ? 'Anônimo' : (auth.currentUser.displayName || 'Usuário da Comunidade'),
     contemAnexo: Boolean(arquivo),
     severidade: triagem.severidade_corrigida,
     motivoTriagem: triagem.motivo
@@ -1236,3 +1262,192 @@ async function autoPreencherComIA(textoFalado) {
         showToast('Não foi possível categorizar, mas anotamos seu relato.', 'info');
     }
 }
+
+// ===================================================
+// 10. MÓDULO DE CONFIGURAÇÕES DA CONTA
+// ===================================================
+function abrirModalConfiguracoes() {
+    // Esconde o menuzinho suspenso do perfil primeiro
+    const menuPerfil = document.getElementById('menuFlutuantePerfil');
+    if (menuPerfil) menuPerfil.style.display = 'none';
+
+    // Abre a janela de configurações com animação
+    const modal = document.getElementById('modalConfiguracoes');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    requestAnimationFrame(() => modal.classList.add('open'));
+}
+
+function fecharModalConfiguracoes() {
+    const modal = document.getElementById('modalConfiguracoes');
+    if (!modal) return;
+    modal.classList.remove('open');
+    const remover = () => {
+      modal.style.display = 'none';
+      modal.removeEventListener('transitionend', remover);
+    };
+    modal.addEventListener('transitionend', remover);
+}
+
+// ===================================================
+// 11. PERFIL, BIO, ANONIMATO E HISTORICO
+// ===================================================
+function carregarPreferenciasPerfil(user) {
+  if (!user) return Promise.resolve();
+
+  return db.collection('usuarios').doc(user.uid).get().then(doc => {
+    const dados = doc.exists ? doc.data() : {};
+    perfilAnonimoAtual = dados.anonimo === true;
+  }).catch(error => {
+    console.error('Erro ao carregar preferências do perfil:', error);
+    perfilAnonimoAtual = false;
+  });
+}
+
+function atualizarContadorBio() {
+  const campo = document.getElementById('inputEditBio');
+  const contador = document.getElementById('contadorBio');
+  if (campo && contador) contador.innerText = `${campo.value.length}/200`;
+}
+
+function alternarTelaEdicao(mostrarEdicao) {
+  const visualizacao = document.getElementById('telaVisualizacaoPerfil');
+  const edicao = document.getElementById('telaEdicaoPerfil');
+  if (!visualizacao || !edicao) return;
+
+  visualizacao.style.display = mostrarEdicao ? 'none' : 'block';
+  edicao.style.display = mostrarEdicao ? 'block' : 'none';
+  if (mostrarEdicao) atualizarContadorBio();
+}
+
+async function abrirModalPerfil() {
+  const user = auth.currentUser;
+  const modal = document.getElementById('modalPerfilUsuario');
+  if (!user || !modal) return;
+
+  fecharModalConfiguracoes();
+  alternarTelaEdicao(false);
+
+  const foto = document.getElementById('imgPerfilAtual');
+  const nome = document.getElementById('nomePerfilAtual');
+  const inputNome = document.getElementById('inputEditNome');
+  if (foto) foto.src = user.photoURL || 'https://via.placeholder.com/80';
+  if (nome) nome.innerText = user.displayName || 'Usuário da Comunidade';
+  if (inputNome) inputNome.value = user.displayName || '';
+
+  modal.style.display = 'flex';
+  requestAnimationFrame(() => modal.classList.add('open'));
+
+  try {
+    const doc = await db.collection('usuarios').doc(user.uid).get();
+    const dados = doc.exists ? doc.data() : {};
+    const bio = dados.bio || 'Membro Comunitário';
+    perfilAnonimoAtual = dados.anonimo === true;
+
+    document.getElementById('bioPerfilAtual').innerText = bio;
+    document.getElementById('inputEditBio').value = dados.bio || '';
+    document.getElementById('checkAnonimo').checked = perfilAnonimoAtual;
+    document.getElementById('statusAnonimoPerfil').innerText = perfilAnonimoAtual ? 'Sim' : 'Não';
+    atualizarContadorBio();
+  } catch (error) {
+    console.error('Erro ao carregar perfil:', error);
+    showToast('Não foi possível carregar os dados do perfil.', 'error');
+  }
+
+  carregarHistoricoDoUsuario(user.uid);
+}
+
+function fecharModalPerfil() {
+  const modal = document.getElementById('modalPerfilUsuario');
+  if (!modal) return;
+  modal.classList.remove('open');
+  const esconder = () => {
+    modal.style.display = 'none';
+    modal.removeEventListener('transitionend', esconder);
+  };
+  modal.addEventListener('transitionend', esconder);
+  setTimeout(esconder, 350);
+}
+
+function voltarParaConfiguracoes() {
+  fecharModalPerfil();
+  abrirModalConfiguracoes();
+}
+
+async function salvarPerfilUsuario() {
+  const user = auth.currentUser;
+  const botao = document.getElementById('btnSalvarPerfil');
+  if (!user || !botao) return;
+
+  const novoNome = document.getElementById('inputEditNome').value.trim();
+  const novaBio = document.getElementById('inputEditBio').value.trim();
+  const anonimato = document.getElementById('checkAnonimo').checked;
+  if (!novoNome) {
+    showToast('Informe um nome de exibição.', 'error');
+    return;
+  }
+
+  botao.disabled = true;
+  botao.innerText = 'Salvando...';
+  try {
+    await user.updateProfile({ displayName: novoNome });
+    await db.collection('usuarios').doc(user.uid).set({
+      nome: novoNome,
+      bio: novaBio,
+      anonimo: anonimato,
+      atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    perfilAnonimoAtual = anonimato;
+    document.getElementById('nomePerfilAtual').innerText = novoNome;
+    document.getElementById('bioPerfilAtual').innerText = novaBio || 'Membro Comunitário';
+    document.getElementById('statusAnonimoPerfil').innerText = anonimato ? 'Sim' : 'Não';
+    atualizarDadosPerfilTela(user);
+    showToast('Perfil atualizado com sucesso!', 'success');
+    alternarTelaEdicao(false);
+  } catch (error) {
+    console.error('Erro ao salvar perfil:', error);
+    showToast('Não foi possível salvar o perfil.', 'error');
+  } finally {
+    botao.disabled = false;
+    botao.innerText = 'Salvar';
+  }
+}
+
+function carregarHistoricoDoUsuario(uid) {
+  const container = document.getElementById('listaHistoricoUsuario');
+  const total = document.getElementById('totalAlertasPerfil');
+  if (!container || !uid) return;
+
+  container.innerHTML = '<p class="perfil-historico-vazio">Carregando histórico...</p>';
+  db.collection('alertas').where('uidUsuario', '==', uid).limit(20).get()
+    .then(snapshot => {
+      const registros = snapshot.docs.map(doc => doc.data()).sort((a, b) => {
+        const dataA = a.data?.toMillis ? a.data.toMillis() : 0;
+        const dataB = b.data?.toMillis ? b.data.toMillis() : 0;
+        return dataB - dataA;
+      }).slice(0, 5);
+
+      if (total) total.innerText = snapshot.size;
+      if (!registros.length) {
+        container.innerHTML = '<p class="perfil-historico-vazio">Você ainda não fez nenhum alerta.</p>';
+        return;
+      }
+
+      container.innerHTML = registros.map(alerta => {
+        const data = alerta.data?.toDate ? alerta.data.toDate().toLocaleDateString('pt-BR') : 'Recente';
+        return `<div class="perfil-historico-item">
+          <div><strong>🚨 ${escaparHTML(alerta.tipo)}</strong><small>📍 ${escaparHTML(alerta.bairro)}</small></div>
+          <div class="perfil-historico-meta"><strong>${escaparHTML(alerta.severidade || 'MEDIA')}</strong><br>${data}</div>
+        </div>`;
+      }).join('');
+    })
+    .catch(error => {
+      console.error('Erro ao carregar histórico:', error);
+      if (total) total.innerText = '0';
+      container.innerHTML = '<p class="perfil-historico-erro">Não foi possível carregar seu histórico.</p>';
+    });
+}
+
+const campoBioPerfil = document.getElementById('inputEditBio');
+if (campoBioPerfil) campoBioPerfil.addEventListener('input', atualizarContadorBio);

@@ -73,7 +73,7 @@
   <hr class="gemini-divisor">
 
   <ul id="menuPainelPrincipal" class="gemini-menu-opcoes">
-    <li onclick="alert('Funcionalidade de Configurações da Conta em desenvolvimento.')">⚙️ Configurações da conta</li>
+    <li onclick="abrirModalConfiguracoes()">⚙️ Configurações da conta</li>
     <li onclick="abrirSubmenuNotificacoes()">🔔 Preferências de notificações</li>
     <li onclick="alert('Seus dados estão protegidos sob criptografia de ponta a ponta.')">🔒 Privacidade e segurança</li>
     <li onclick="alert('Plataforma Comunitária v2.2.0 - 2026')">ℹ️ Sobre o Alerta Bairro</li>
@@ -334,7 +334,6 @@
     <button class="salvar" onclick="salvarAlertaModalExpandido()" style="width: 100%; background: #D9383A; font-weight: 700;">Publicar Alerta na Comunidade</button>
     </div>
   </div>
-  </div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.11.1/firebase-app-compat.js"></script>
@@ -346,5 +345,111 @@
 <div id="modal-imagem-global" onclick="this.style.display='none'">
   <img id="imagem-ampliada-conteudo" src="" alt="Ampliada">
 </div>
+
+<div id="modalConfiguracoes" class="modal-login" style="display: none;">
+  <div class="modal-conteudo" style="max-width: 420px; width: 90%; padding: 0; overflow: hidden;">
+
+    <div style="background: #0A2540; color: white; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;">
+      <h2 style="font-size: 16px; margin: 0; display: flex; align-items: center; gap: 8px;">
+        ⚙️ Configurações
+      </h2>
+      <span class="fechar-modal" onclick="fecharModalConfiguracoes()" style="color: white; position: static; font-size: 24px;">&times;</span>
+    </div>
+
+    <div class="lista-configuracoes" style="padding: 10px 0; max-height: 65vh; overflow-y: auto;">
+
+      <div class="item-config" onclick="abrirModalPerfil()">
+        <span class="icone-config">👤</span>
+        <div class="texto-config">
+          <h4>Seu perfil</h4>
+          <p>Edite seu nome, foto e informações de contato</p>
+        </div>
+      </div>
+
+      <div class="item-config" onclick="alert('Módulo de Histórico em desenvolvimento.')">
+        <span class="icone-config">📈</span>
+        <div class="texto-config">
+          <h4>Sua Linha do tempo</h4>
+          <p>Veja o histórico de alertas que você relatou</p>
+        </div>
+      </div>
+
+      <div class="item-config">
+        <span class="icone-config">🗺️</span>
+        <div class="texto-config">
+          <h4>App e display</h4>
+          <p>Tema do mapa, controles e acessibilidade</p>
+        </div>
+      </div>
+
+      <div class="item-config">
+        <span class="icone-config">📍</span>
+        <div class="texto-config">
+          <h4>Localização e privacidade</h4>
+          <p>Gerencie sua visibilidade no Sonar Comunitário</p>
+        </div>
+      </div>
+
+      <div class="item-config" onclick="sair(); fecharModalConfiguracoes();">
+        <span class="icone-config" style="background: #fee2e2;">🚪</span>
+        <div class="texto-config">
+          <h4 style="color: #ef4444;">Sair da conta</h4>
+          <p>Desconectar deste dispositivo</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div id="modalPerfilUsuario" class="modal-login" style="display: none;">
+  <div class="modal-conteudo perfil-modal-conteudo">
+    <div class="perfil-modal-cabecalho">
+      <h2><button type="button" class="perfil-voltar" onclick="voltarParaConfiguracoes()" aria-label="Voltar para configurações">&larr;</button> Seu perfil</h2>
+      <button type="button" class="perfil-fechar" onclick="fecharModalPerfil()" aria-label="Fechar perfil">&times;</button>
+    </div>
+
+    <div id="telaVisualizacaoPerfil" class="perfil-tela">
+      <img id="imgPerfilAtual" src="https://via.placeholder.com/80" alt="Foto do perfil" class="perfil-avatar-grande">
+      <h3 id="nomePerfilAtual">Usuário da Comunidade</h3>
+      <p id="bioPerfilAtual" class="perfil-bio">Membro Comunitário</p>
+
+      <div class="perfil-estatisticas">
+        <div><strong id="totalAlertasPerfil">0</strong><span>Alertas</span></div>
+        <div><strong id="statusAnonimoPerfil">Não</strong><span>Anonimato padrão</span></div>
+      </div>
+
+      <button type="button" class="perfil-botao-editar" onclick="alternarTelaEdicao(true)">Editar perfil</button>
+
+      <section class="perfil-historico">
+        <h4>Seus alertas recentes</h4>
+        <div id="listaHistoricoUsuario">Carregando histórico...</div>
+      </section>
+    </div>
+
+    <div id="telaEdicaoPerfil" class="perfil-tela" style="display: none;">
+      <div class="perfil-anonimato">
+        <input type="checkbox" id="checkAnonimo">
+        <div>
+          <label for="checkAnonimo">Publicar alertas como anônimo</label>
+          <p>Seu nome não será mostrado publicamente. O sistema ainda manterá o vínculo privado para seu histórico.</p>
+        </div>
+      </div>
+
+      <label class="perfil-campo-label" for="inputEditNome">Nome de exibição</label>
+      <input type="text" id="inputEditNome" class="perfil-campo" maxlength="80" placeholder="Como deseja ser identificado?">
+
+      <label class="perfil-campo-label" for="inputEditBio">Bio</label>
+      <textarea id="inputEditBio" class="perfil-campo" rows="3" maxlength="200" placeholder="Escreva uma breve descrição sobre você"></textarea>
+      <div id="contadorBio" class="perfil-contador">0/200</div>
+
+      <div class="perfil-acoes-edicao">
+        <button type="button" class="perfil-botao-cancelar" onclick="alternarTelaEdicao(false)">Cancelar</button>
+        <button type="button" id="btnSalvarPerfil" class="perfil-botao-salvar" onclick="salvarPerfilUsuario()">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

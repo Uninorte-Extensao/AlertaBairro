@@ -1,5 +1,5 @@
 // ===================================================
-// 1. CONFIGURAÇÃO E CONEXÃO COM O SERVIDOR (FIREBASE)
+// 1. CONFIGURAÇÃO FIREBASE
 // ===================================================
 const firebaseConfig = {
   apiKey: "AIzaSyBe7jdY2y04Uw1DuQ9T6f5NXJOqPzRPPZo",
@@ -15,7 +15,7 @@ const db = firebase.firestore();
 const auth = firebase.auth(); 
 
 // ===================================================
-// 2. VARIÁVEIS GERAIS E CONFIGURAÇÃO DO MAPA
+// 2. VARIÁVEIS GERAIS E MAPA
 // ===================================================
 let filtroTipoAtual = "todos"; 
 let alertas = [];
@@ -36,11 +36,11 @@ let nivelAcessoUsuarioAtual = "comum";
 let ultimoPopup = null; 
 let perfilAnonimoAtual = false;
 
-const mapa = L.map('mapa', { attributionControl: false }).setView([-3.1190, -60.0217], 13);
+const mapa = L.map('mapa', { attributionControl: false, zoomControl: false }).setView([-3.1190, -60.0217], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapa);
 
 // ===================================================
-// CONFIGURAÇÃO DO FORMULÁRIO DO MAPA
+// FORMULÁRIO DO MAPA
 // ===================================================
 function obterPopupFormularioHTML() {
   let opcoesSelect = `
@@ -80,9 +80,6 @@ function obterPopupFormularioHTML() {
     </div>`;
 }
 
-// ===================================================
-// OUVINTE DE CLIQUE NO MAPA
-// ===================================================
 mapa.on('click', function(e) {
   const menuPerfil = document.getElementById('menuFlutuantePerfil');
   if (menuPerfil) menuPerfil.style.display = 'none';
@@ -96,7 +93,6 @@ mapa.on('click', function(e) {
     ultimaLatUsuario = e.latlng.lat;
     ultimaLngUsuario = e.latlng.lng;
     selecionandoLocalManualmente = false; 
-    
     abrirModalAlertaExpandido();
     return;
   }
@@ -120,9 +116,6 @@ function abrirPopupCriacaoAlerta(lat, lng) {
   detectarBairro(lat, lng);
 }
 
-// ===================================================
-// FUNÇÕES DE EXIBIÇÃO E TOAST
-// ===================================================
 function showToast(msg, type = 'success', ttl = 2800) {
   const cont = document.getElementById('toastContainer');
   if (!cont) return;
@@ -176,9 +169,6 @@ function irParaAlerta(lat, lng) {
   });
 }
 
-// ===================================================
-// 2.1 MAPA DE CALOR
-// ===================================================
 function gerarMapaDeCalorDinamico() {
   camadasRegiaoCalor.forEach(c => mapa.removeLayer(c));
   camadasRegiaoCalor = [];
@@ -264,21 +254,13 @@ function gerarMapaDeCalorDinamico() {
 }
 
 // ===================================================
-// 3. RECUPERAÇÃO REALTIME E FILTRAGENS
+// 3. RECUPERAÇÃO REALTIME E RENDERING DOS CARDS
 // ===================================================
-function verificarEDispararPushNotificacao(alerta) {
-  console.log("Notificação detectada:", alerta);
-}
-
 db.collection("alertas").orderBy("data", "desc").onSnapshot((querySnapshot) => {
   let novosAlertas = [];
   querySnapshot.forEach((doc) => { 
     novosAlertas.push(doc.data()); 
   });
-
-  if (!primeiraCargaDB && radarAtivo && pushHabilitadoPeloUsuario && novosAlertas.length > alertas.length) {
-    verificarEDispararPushNotificacao(novosAlertas[0]);
-  }
 
   alertas = novosAlertas;
   primeiraCargaDB = false;
@@ -310,20 +292,27 @@ function atualizarInterfaceVisívelComFiltro() {
         if(alerta.tipo.includes('Roubo')) cssClass = 'alerta-roubo';
         else if(alerta.tipo.includes('Luz')) cssClass = 'alerta-falta-luz';
         else if(alerta.tipo.includes('Alagamento')) cssClass = 'alerta-alagamento';
-        else if(alerta.tipo.includes('Trânsito')) cssClass = 'alerta-transito';
-        else if(alerta.tipo.includes('Incêndio')) cssClass = 'alerta-incendio';
-        else if(alerta.tipo.includes('Obra') || alerta.tipo.includes('Manutenção')) cssClass = 'alerta-obra';
-        else if(alerta.tipo.includes('Desaparecimento')) cssClass = 'alerta-desaparecimento';
 
-        let urlImagem = alerta.urlAnexo || (alerta.nomeAnexo ? alerta.nomeAnexo : 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=150');
+        let cssSeveridade = 'severidade-MEDIA';
+        if (alerta.severidade && ['CRITICA', 'ALTA', 'MEDIA', 'BAIXA'].includes(String(alerta.severidade).toUpperCase())) {
+          cssSeveridade = `severidade-${String(alerta.severidade).toUpperCase()}`;
+        }
+
+        const urlFoto = alerta.urlAnexo || alerta.nomeAnexo;
+        const temFotoReal = Boolean(
+          urlFoto && 
+          urlFoto.trim() !== '' && 
+          !urlFoto.includes('unsplash.com') && 
+          (alerta.contemAnexo === true || urlFoto.startsWith('http'))
+        );
 
         let htmlImagemDireita = '';
-        if (alerta.contemAnexo || alerta.urlAnexo) {
+        if (temFotoReal) {
           htmlImagemDireita = `
             <div class="coluna-imagem-alerta">
-              <img src="${escaparHTML(urlImagem)}"
+              <img src="${escaparHTML(urlFoto)}"
                    class="foto-registro-lateral" 
-                   data-url="${escaparHTML(urlImagem)}"
+                   data-url="${escaparHTML(urlFoto)}"
                    onclick="abrirFoto(this.dataset.url)"
                    alt="Evidência" 
                    style="cursor: pointer;">
@@ -332,10 +321,10 @@ function atualizarInterfaceVisívelComFiltro() {
         }
 
         lista.innerHTML += `
-        <div class="alerta-card ${cssClass} ${alerta.contemAnexo ? 'com-foto' : ''}" onclick="irParaAlerta(${alerta.lat}, ${alerta.lng})" style="cursor: pointer;">
+        <div class="alerta-card ${cssClass} ${cssSeveridade}" onclick="irParaAlerta(${alerta.lat}, ${alerta.lng})" style="cursor: pointer;">
           <div class="coluna-texto-alerta">
               <div class="alerta-header">
-                <span>🚨 ${tipo}</span>
+                <span class="alerta-titulo-tipo">🚨 ${tipo}</span>
                 <span class="alerta-bairro">📍 ${bairro}</span>
             </div>
               <div class="alerta-corpo">${descricao}</div>
@@ -369,17 +358,54 @@ function atualizarInterfaceVisívelComFiltro() {
 function filtrarAlertasPorTipo(tipo, botaoClicado) {
   filtroTipoAtual = tipo;
   const botoes = document.querySelectorAll('.btn-filtro');
+  
   botoes.forEach(b => {
-    b.classList.remove('ativo'); b.style.background = "#f8fafc"; b.style.color = "#0f172a";
+    b.classList.remove('ativo');
+    b.removeAttribute('style');
   });
+
   botaoClicado.classList.add('ativo');
-  botaoClicado.style.background = "#0A2540";
-  botaoClicado.style.color = "#ffffff";
   atualizarInterfaceVisívelComFiltro();
 }
 
 // ===================================================
-// 4. AUTENTICAÇÃO E PERFIL
+// 4. MODO ESCURO E TEMAS (RESTAURADO E CORRIGIDO)
+// ===================================================
+function alternarModoEscuro(ativo) {
+  if (ativo) {
+    document.body.classList.add('modo-escuro');
+    localStorage.setItem('temaAlertaBairro', 'escuro');
+  } else {
+    document.body.classList.remove('modo-escuro');
+    localStorage.setItem('temaAlertaBairro', 'claro');
+  }
+
+  if (radarAtivo) {
+    verificarAlertasProximos();
+  }
+
+  const modalRadar = document.getElementById('modalHistoricoRadar');
+  if (modalRadar && modalRadar.style.display === 'flex') {
+    renderizarAlertasRadarArea();
+  }
+}
+
+function carregarTemaSalvo() {
+  const temaSalvo = localStorage.getItem('temaAlertaBairro');
+  const switchEscuro = document.getElementById('switchModoEscuro');
+  if (temaSalvo === 'escuro') {
+    document.body.classList.add('modo-escuro');
+    if (switchEscuro) switchEscuro.checked = true;
+  } else {
+    document.body.classList.remove('modo-escuro');
+    if (switchEscuro) switchEscuro.checked = false;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', carregarTemaSalvo);
+
+// ===================================================
+// 5. AUTENTICAÇÃO E PERFIL
 // ===================================================
 function login() {
   const email = document.getElementById('email').value;
@@ -400,12 +426,6 @@ function loginComGoogle() {
 
 function loginExitosa() {
   fecharModalLogin();
-  
-  const sistema = document.getElementById('sistema');
-  if (sistema) sistema.style.display = 'block';
-  
-  document.body.classList.remove('tela-autenticacao'); 
-  
   const btnLogin = document.getElementById('btnNavLogin');
   const btnPerfil = document.getElementById('btnNavPerfil');
   if (btnLogin) btnLogin.style.display = 'none';
@@ -442,12 +462,6 @@ function criarConta() {
   auth.createUserWithEmailAndPassword(email, senha).then(() => { loginExitosa(); }).catch(err => alert(err.message));
 }
 
-function recuperarSenha() { alert("Recuperação enviada."); }
-function abrirSubmenuNotificacoes() { document.getElementById('menuPainelPrincipal').style.display='none'; document.getElementById('submenuNotificacoes').style.display='block'; }
-function fecharSubmenuNotificacoes() { document.getElementById('menuPainelPrincipal').style.display='block'; document.getElementById('submenuNotificacoes').style.display='none'; }
-function alternarPreferenciaPush() { pushHabilitadoPeloUsuario = document.getElementById('switchPushNotificacao').checked; }
-function mostrarOcultarSenhaLogin() { const s = document.getElementById('senha'); s.type = s.type === 'password' ? 'text' : 'password'; }
-
 function abrirModalLogin() { 
   const m = document.getElementById('loginPage'); 
   if (!m) return;
@@ -459,9 +473,9 @@ function fecharModalLogin() {
   const m = document.getElementById('loginPage'); 
   if (!m) return;
   m.classList.remove('open');
-  const remover = () => { m.style.display = 'none'; m.removeEventListener('transitionend', remover); };
-  m.addEventListener('transitionend', remover);
+  setTimeout(() => { m.style.display = 'none'; }, 220);
 }
+
 function toggleMenuPerfil(e) { e.stopPropagation(); const m = document.getElementById('menuFlutuantePerfil'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; }
 
 function atualizarDadosPerfilTela(user) {
@@ -472,23 +486,36 @@ function atualizarDadosPerfilTela(user) {
   }
 }
 
-document.addEventListener('click', (e) => {
-  const ampliada = document.querySelector('.foto-registro-lateral.ampliada');
-  if (ampliada && !e.target.classList.contains('ampliada')) {
-    ampliada.classList.remove('ampliada');
-  }
-});
-
 // ===================================================
-// 5. SONAR / GEOLOCALIZAÇÃO
+// 6. SONAR / GEOLOCALIZAÇÃO
 // ===================================================
 function iniciarRadar() {
   if (!auth.currentUser) { abrirModalLogin(); return; }
   if (!radarAtivo) {
-    radarAtivo = true; document.getElementById('btnRadar').innerText = "Desligar Sonar"; document.getElementById('textoRadar').innerText = "Radar Ativo";
+    radarAtivo = true; 
+    document.getElementById('btnRadar').innerText = "Desligar Sonar"; 
+    document.getElementById('textoRadar').innerText = "Radar Ativo";
     iniciarRastreio(); 
   } else {
-    radarAtivo = false; document.getElementById('btnRadar').innerText = "Ligar Sonar"; document.getElementById('textoRadar').innerText = "Radar Desligado";
+    radarAtivo = false; 
+    document.getElementById('btnRadar').innerText = "Ligar Sonar"; 
+
+    const txtDet = document.getElementById('detalheRadar');
+    const divS = document.getElementById('statusRadar');
+    const txtRadar = document.getElementById('textoRadar');
+    const container = document.getElementById('containerAlertasProximidade');
+
+    if (txtDet) txtDet.innerText = "Ative o perímetro de rastreio de 500m.";
+    if (divS) {
+      divS.style.background = document.body.classList.contains('modo-escuro') ? "#131C2E" : "#F1F5F9";
+      divS.style.borderColor = document.body.classList.contains('modo-escuro') ? "#1E293B" : "#E2E8F0";
+    }
+    if (txtRadar) {
+      txtRadar.innerText = "Radar Desligado";
+      txtRadar.style.color = document.body.classList.contains('modo-escuro') ? "#F8FAFC" : "#0F172A";
+    }
+    if (container) container.innerHTML = "";
+
     if (idRastreio) { navigator.geolocation.clearWatch(idRastreio); idRastreio = null; }
     if (circuloRadar) { mapa.removeLayer(circuloRadar); circuloRadar = null; }
   }
@@ -543,7 +570,6 @@ function calcularNivelPerigo() {
 
     let nivelPerigo = 0; 
     let alertasCriticos = alertasProximos.filter(a => a.dist <= 250).length; 
-
     const temRouboPerto = alertasProximos.some(a => a.tipo.toLowerCase().includes('roubo'));
 
     if (alertasCriticos >= 3 || totalAlertas >= 8 || temRouboPerto) {
@@ -564,9 +590,9 @@ function verificarAlertasProximos() {
     const { nivelPerigo, totalAlertas, alertasProximos } = calcularNivelPerigo();
 
     const cores = {
-        0: { radarColor: '#22c55e', statusBg: '#dcfce7', statusText: '#166534', titulo: 'Perímetro Seguro', detalhe: 'Nenhuma atividade suspeita próxima.' },
-        1: { radarColor: '#eab308', statusBg: '#fef3c7', statusText: '#a16207', titulo: 'Ameaça Detectada', detalhe: `${totalAlertas} alerta(s) próximo(s)` },
-        2: { radarColor: '#ef4444', statusBg: '#fee2e2', statusText: '#7f1d1d', titulo: 'Perímetro em Alerta', detalhe: 'Incidentes recentes detectados a menos de 500m.' }
+        0: { statusBg: 'rgba(34, 197, 94, 0.15)', statusBorder: '#22c55e', statusText: '#15803d', titulo: 'Perímetro Seguro', detalhe: 'Nenhuma atividade suspeita próxima.' },
+        1: { statusBg: 'rgba(234, 179, 8, 0.15)', statusBorder: '#eab308', statusText: '#a16207', titulo: 'Ameaça Detectada', detalhe: `${totalAlertas} alerta(s) próximo(s)` },
+        2: { statusBg: 'rgba(239, 68, 68, 0.2)', statusBorder: '#ef4444', statusText: '#b91c1c', titulo: 'Perímetro em Alerta', detalhe: 'Incidentes recentes detectados a menos de 500m.' }
     };
 
     const corConfig = cores[nivelPerigo];
@@ -577,8 +603,7 @@ function verificarAlertasProximos() {
 
     if (divS) {
         divS.style.background = corConfig.statusBg;
-        divS.style.color = corConfig.statusText;
-        divS.style.borderColor = corConfig.radarColor;
+        divS.style.borderColor = corConfig.statusBorder;
     }
     
     if (txtRadar) { txtRadar.innerText = corConfig.titulo; txtRadar.style.color = corConfig.statusText; }
@@ -586,7 +611,11 @@ function verificarAlertasProximos() {
 
     alertasProximos.slice(0, 3).forEach(alerta => {
         const iconEmoji = alerta.dist < 250 ? '🔴' : '🟡';
-        container.innerHTML += `<div style="color: #7f1d1d; font-weight: bold; margin-top: 6px; font-size: 11px;">${iconEmoji} ${alerta.tipo} - ${Math.round(alerta.dist)}m</div>`;
+        container.innerHTML += `
+          <div onclick="abrirModalHistoricoRadar()" style="color: ${corConfig.statusText}; font-weight: bold; margin-top: 6px; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: space-between;" title="Clique para abrir o histórico do perímetro">
+            <span>${iconEmoji} ${alerta.tipo} - ${Math.round(alerta.dist)}m</span>
+            <span style="font-size: 10px; opacity: 0.8;">🔍 abrir</span>
+          </div>`;
     });
 }
 
@@ -595,7 +624,7 @@ function centrarEmMim() {
 }
 
 // ===================================================
-// 6. NAVEGAÇÃO E ALERTAS MANUAIS
+// 7. NAVEGAÇÃO E ALERTAS MANUAIS
 // ===================================================
 function mostrarPagina(id){
   const paginas = document.querySelectorAll('.pagina');
@@ -637,7 +666,9 @@ async function salvarAlertaMapa(){
     autorPublico: perfilAnonimoAtual ? 'Anônimo' : (auth.currentUser.displayName || 'Usuário da Comunidade'),
     urgenciaAlegada: urgenciaUsuario,
     severidade: triagem.severidade_corrigida,
-    motivoTriagem: triagem.motivo
+    motivoTriagem: triagem.motivo,
+    contemAnexo: false,
+    urlAnexo: null
   };
   
   db.collection("alertas").add(novo).then(() => {
@@ -693,46 +724,6 @@ function renderizarCarrosselComunitario() {
   });
 }
 
-// ===================================================
-// 7. MODAL EXPANDIDO DE CRIAR ALERTA
-// ===================================================
-function gatilhoBotaoAlertaExpandido() {
-  const menuPerfil = document.getElementById('menuFlutuantePerfil');
-  if (menuPerfil) menuPerfil.style.display = 'none';
-
-  if (!auth.currentUser) { abrirModalLogin(); return; }
-  abrirModalAlertaExpandido();
-}
-
-function abrirModalAlertaExpandido() {
-  const m = document.getElementById('modalAlertaExpandido'); if (!m) return;
-  
-  if (ultimaLatUsuario && ultimaLngUsuario) {
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${ultimaLatUsuario}&lon=${ultimaLngUsuario}`)
-      .then(res => res.json()).then(d => {
-        const b = d.address.suburb || d.address.neighbourhood || d.address.city_district || "";
-        if (document.getElementById('modalExpBairro')) document.getElementById('modalExpBairro').value = b;
-      });
-  }
-  m.style.display = 'flex';
-  requestAnimationFrame(() => m.classList.add('open'));
-}
-
-function fecharModalAlertaExpandido() {
-  const m = document.getElementById('modalAlertaExpandido'); if (!m) return; 
-  m.classList.remove('open');
-  const remover = () => { m.style.display = 'none'; m.removeEventListener('transitionend', remover); };
-  m.addEventListener('transitionend', remover);
-}
-
-let selecionandoLocalManualmente = false;
-
-function iniciarSelecaoManualMapa() {
-  selecionandoLocalManualmente = true;
-  fecharModalAlertaExpandido(); 
-  showToast('Toque no mapa para escolher o local do alerta', 'info', 4000);
-}
-
 function abrirFoto(url) {
   const modal = document.getElementById('modal-imagem-global');
   const imgConteudo = document.getElementById('imagem-ampliada-conteudo');
@@ -740,10 +731,11 @@ function abrirFoto(url) {
   modal.style.display = 'flex'; 
 }
 
+// ===================================================
+// 8. INTEGRAÇÃO COM GEMINI IA
+// ===================================================
+const GEMINI_API_KEY = "AQ.Ab8RN6L-J9NftuNSZSl2i95rw17IMVMaXUJ48oohKKbIHWFkTQ";
 
-// ===================================================
-// 8. INTEGRAÇÃO COM INTELIGÊNCIA ARTIFICIAL (GEMINI)
-// ===================================================
 async function analisarAlertaComIA(tipo, descricao, urgenciaUsuario = 'NAO INFORMADA') {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
@@ -754,16 +746,16 @@ async function analisarAlertaComIA(tipo, descricao, urgenciaUsuario = 'NAO INFOR
     - Descrição: "${descricao}"
     - Urgência declarada: "${urgenciaUsuario}"
 
-    REGRAS:
-    1. Se for um TROTE evidente, piada absurda, brinquedo OU se o texto for apenas gírias/saudações/palavras soltas sem descrever um problema real (ex: "bora", "iai", "pdc", "oi", "tmlc"), defina "valido": false.
-    2. Se for um relato real sobre segurança/infraestrutura, defina "valido": true.
-    3. Defina "severidade_corrigida" entre: "CRITICA", "ALTA", "MEDIA" ou "BAIXA".
+    REGRAS DE BLOQUEIO (OBRIGATÓRIAS):
+    1. Se o texto for apenas gírias, saudações, palavras soltas ou sem sentido, retorne "valido": false.
+    2. Se o texto não explicar O QUE aconteceu de verdade, retorne "valido": false.
+    3. Apenas se for um RELATO REAL E CLARO de segurança/infraestrutura, retorne "valido": true.
 
     Retorne apenas JSON:
     {
       "valido": true,
       "severidade_corrigida": "MEDIA",
-      "motivo": "Justificativa curta explicando o motivo da aprovação ou bloqueio"
+      "motivo": "Justificativa curta"
     }`;
 
     try {
@@ -772,9 +764,7 @@ async function analisarAlertaComIA(tipo, descricao, urgenciaUsuario = 'NAO INFOR
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    responseMimeType: "application/json"
-                }
+                generationConfig: { responseMimeType: "application/json" }
             })
         });
 
@@ -794,7 +784,6 @@ async function analisarAlertaComIA(tipo, descricao, urgenciaUsuario = 'NAO INFOR
         };
 
     } catch (err) {
-        console.error("Aviso na IA (liberando alerta em modo tolerante):", err);
         return { 
             valido: true, 
             severidade_corrigida: urgenciaUsuario !== 'NAO INFORMADA' ? urgenciaUsuario : 'MEDIA', 
@@ -802,75 +791,15 @@ async function analisarAlertaComIA(tipo, descricao, urgenciaUsuario = 'NAO INFOR
         };
     }
 }
-const GEMINI_API_KEY = "AQ.Ab8RN6L-J9NftuNSZSl2i95rw17IMVMaXUJ48oohKKbIHWFkTQ";
 
 let mediaRecorderIA = null;
 let audioChunksIA = [];
 let gravandoIA = false;
 
-// Efeito de digitação visual em tempo real
-function digitarTextoEfeito(texto, elemento, velocidade = 20) {
-  return new Promise((resolve) => {
-    elemento.innerText = "";
-    let i = 0;
-    const timer = setInterval(() => {
-      elemento.innerText += texto.charAt(i);
-      i++;
-      if (i >= texto.length) {
-        clearInterval(timer);
-        resolve();
-      }
-    }, velocidade);
-  });
-}
-
-// Geolocaliza especificamente o bairro citado em Manaus
-async function buscarCoordenadasBairroManaus(bairro) {
-  try {
-    const consulta = `${bairro}, Manaus, Amazonas, Brasil`;
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(consulta)}&format=json&limit=1`);
-    const dados = await res.json();
-
-    if (dados && dados.length > 0) {
-      return {
-        lat: parseFloat(dados[0].lat),
-        lng: parseFloat(dados[0].lon),
-        nomeOficial: dados[0].display_name.split(',')[0] || bairro
-      };
-    }
-    return null;
-  } catch (err) {
-    console.error("Erro ao buscar coordenadas do bairro:", err);
-    return null;
-  }
-}
-
-// Tradutor de erros para linguagem amigável
-function obterMensagemErroAmigavel(error) {
-  const textoErro = error?.message || String(error);
-
-  if (textoErro.includes("503") || textoErro.includes("UNAVAILABLE") || textoErro.includes("high demand")) {
-    return "O servidor de inteligência está em alta demanda. Tente novamente em alguns segundos.";
-  }
-  if (textoErro.includes("404") || textoErro.includes("NOT_FOUND")) {
-    return "Serviço de análise de voz indisponível temporariamente.";
-  }
-  if (textoErro.includes("JSON") || textoErro.includes("parse")) {
-    return "Não conseguimos entender os detalhes do relato. Grave novamente falando mais devagar.";
-  }
-  return "Não foi possível concluir a análise do áudio. Verifique sua conexão e tente novamente.";
-}
-
 function alternarGravacaoVozIA() {
-  if (!auth.currentUser) {
-    abrirModalLogin();
-    return;
-  }
-  if (!gravandoIA) {
-    iniciarGravacaoVozIA();
-  } else {
-    pararGravacaoVozIA();
-  }
+  if (!auth.currentUser) { abrirModalLogin(); return; }
+  if (!gravandoIA) iniciarGravacaoVozIA();
+  else pararGravacaoVozIA();
 }
 
 async function iniciarGravacaoVozIA() {
@@ -892,25 +821,10 @@ async function iniciarGravacaoVozIA() {
     mediaRecorderIA.start();
     gravandoIA = true;
 
-    const modal = document.getElementById('modalVozIA');
-    const icone = document.getElementById('iconeVozIA');
-    const titulo = document.getElementById('tituloVozIA');
-    const subtitulo = document.getElementById('subtituloVozIA');
-    const btnAcao = document.getElementById('btnAcaoVozIA');
-    const caixaLive = document.getElementById('caixaAnaliseLive');
-
-    if (modal) modal.style.display = 'block';
-    if (caixaLive) caixaLive.style.display = 'none';
-    if (icone) icone.classList.add('gravando');
-    if (titulo) titulo.innerText = "Escutando seu relato...";
-    if (subtitulo) subtitulo.innerText = "Fale o tipo de incidente e OBRIGATORIAMENTE o bairro/local.";
-    if (btnAcao) {
-      btnAcao.innerText = "⏹️ Finalizar";
-      btnAcao.style.display = 'block';
-    }
-
+    document.getElementById('modalVozIA').style.display = 'block';
+    document.getElementById('iconeVozIA').classList.add('gravando');
+    document.getElementById('tituloVozIA').innerText = "Escutando seu relato...";
   } catch (err) {
-    console.error("Erro de microfone:", err);
     alert("Permissão de microfone negada ou não encontrada.");
   }
 }
@@ -920,55 +834,27 @@ function pararGravacaoVozIA() {
     mediaRecorderIA.stop();
     mediaRecorderIA.stream.getTracks().forEach(track => track.stop());
     gravandoIA = false;
-
-    const icone = document.getElementById('iconeVozIA');
-    const titulo = document.getElementById('tituloVozIA');
-    const subtitulo = document.getElementById('subtituloVozIA');
-    const btnAcao = document.getElementById('btnAcaoVozIA');
-
-    if (icone) icone.classList.remove('gravando');
-    if (titulo) titulo.innerText = "✨ Processando relato...";
-    if (subtitulo) subtitulo.innerText = "Iniciando comunicação com a inteligência artificial...";
-    if (btnAcao) btnAcao.style.display = 'none';
+    document.getElementById('iconeVozIA').classList.remove('gravando');
+    document.getElementById('tituloVozIA').innerText = "✨ Processando relato...";
   }
 }
 
 function converterBlobParaBase64(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result.split(',')[1];
-      resolve(base64String);
-    };
+    reader.onloadend = () => resolve(reader.result.split(',')[1]);
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
 }
 
 async function processarAudioComGemini(base64Audio, mimeType) {
-  const promptSistema = `
-    Você é a IA de triagem de segurança comunitária do Alerta Bairro em Manaus.
-    Escute o áudio e extraia estritamente um JSON no seguinte formato:
-    {
-      "tipo": "Roubo" | "Falta de Luz" | "Alagamento" | "Acidente de Trânsito" | "Desaparecimento" | "Incêndio",
-      "descricao": "resumo claro do ocorrido baseado na fala",
-      "bairro_mencionado": "nome do bairro ou rua em Manaus se foi falado explicitamente no áudio, ou null se NÃO foi informado o local"
-    }
-    Atenção: Se o usuário não disser o nome do bairro, rua ou ponto de referência, defina "bairro_mencionado" estritamente como null.
-    Responda APENAS o JSON puro, sem marcações markdown.
-  `;
-
   const caixaLive = document.getElementById('caixaAnaliseLive');
   const textoLive = document.getElementById('textoAnaliseLive');
 
   if (caixaLive) caixaLive.style.display = 'block';
 
   try {
-    // Etapa 1: Imersão visual
-    if (textoLive) textoLive.innerText = "🎙️ Analisando áudio enviado...";
-    await new Promise(r => setTimeout(r, 600));
-
-    // Etapa 2: Requisição à IA
     if (textoLive) textoLive.innerText = "🧠 Identificando tipo de ocorrência e localização...";
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_API_KEY}`;
@@ -980,77 +866,48 @@ async function processarAudioComGemini(base64Audio, mimeType) {
         contents: [{
           parts: [
             { inlineData: { mimeType: mimeType.split(';')[0], data: base64Audio } },
-            { text: promptSistema }
+            { text: `Extraia JSON puro: {"tipo": "Roubo"|"Falta de Luz"|"Alagamento"|"Acidente de Trânsito", "descricao": "resumo", "bairro_mencionado": "nome do bairro em Manaus"}` }
           ]
         }]
       })
     });
 
     const data = await response.json();
-
-    if (data.error) {
-      throw new Error(data.error.message || "Erro no servidor Gemini");
-    }
-
-    const textoResposta = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    const jsonLimpo = textoResposta.replace(/```json/g, '').replace(/```/g, '').trim();
+    const jsonLimpo = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json/g, '').replace(/```/g, '').trim();
     const dadosOcorrencia = JSON.parse(jsonLimpo);
 
-    // Validação de bairro: Se não falou onde foi, descarta a criação e avisa
-    if (!dadosOcorrencia.bairro_mencionado || dadosOcorrencia.bairro_mencionado === "null") {
-      if (textoLive) textoLive.innerText = "⚠️ Localização não identificada no seu áudio.";
-      showToast("Por favor, informe o bairro ou local da ocorrência ao gravar o relato.", "error", 4500);
-      setTimeout(() => { fecharModalVozIA(); }, 2500);
+    if (!dadosOcorrencia.bairro_mencionado) {
+      showToast("Bairro não identificado no áudio. Fale o local claramente.", "error", 4000);
+      fecharModalVozIA();
       return;
     }
 
-    // Etapa 3: Mapeamento Geográfico no OpenStreetMap
-    if (textoLive) textoLive.innerText = `📍 Localizando "${dadosOcorrencia.bairro_mencionado}" no mapa de Manaus...`;
-    
-    const geoLocal = await buscarCoordenadasBairroManaus(dadosOcorrencia.bairro_mencionado);
+    const resGeo = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(dadosOcorrencia.bairro_mencionado + ', Manaus')}&format=json&limit=1`);
+    const dadosGeo = await resGeo.json();
+    const geoLocal = (dadosGeo && dadosGeo.length > 0) ? { lat: parseFloat(dadosGeo[0].lat), lng: parseFloat(dadosGeo[0].lon), nomeOficial: dadosOcorrencia.bairro_mencionado } : null;
 
     if (!geoLocal) {
-      if (textoLive) textoLive.innerText = "⚠️ Bairro não encontrado na região.";
-      showToast(`Não localizamos "${dadosOcorrencia.bairro_mencionado}" em Manaus. Tente citar o bairro novamente.`, "error", 4500);
-      setTimeout(() => { fecharModalVozIA(); }, 2500);
+      showToast("Bairro não localizado em Manaus.", "error", 4000);
+      fecharModalVozIA();
       return;
     }
 
-    // Etapa 4: Exibição da transcrição digitada
-    if (textoLive) textoLive.innerText = "✨ Finalizando registro do alerta...";
-
-    const resumoVisual = `🚨 Tipo: ${dadosOcorrencia.tipo}\n📍 Local: ${geoLocal.nomeOficial}\n📝 Relato: "${dadosOcorrencia.descricao}"`;
-    await digitarTextoEfeito(resumoVisual, textoLive, 15);
-
-    setTimeout(async () => {
-      await cadastrarAlertaGeradoPorIA({
-        tipo: dadosOcorrencia.tipo,
-        descricao: dadosOcorrencia.descricao,
-        bairro: geoLocal.nomeOficial,
-        lat: geoLocal.lat,
-        lng: geoLocal.lng
-      });
-      if (caixaLive) caixaLive.style.display = 'none';
-    }, 1200);
+    cadastrarAlertaGeradoPorIA({
+      tipo: dadosOcorrencia.tipo,
+      descricao: dadosOcorrencia.descricao,
+      bairro: geoLocal.nomeOficial,
+      lat: geoLocal.lat,
+      lng: geoLocal.lng
+    });
 
   } catch (error) {
-    console.error("Erro na integração com Gemini:", error);
-    const mensagemHumana = obterMensagemErroAmigavel(error);
-    
-    if (textoLive) textoLive.innerText = `❌ ${mensagemHumana}`;
-    showToast(mensagemHumana, "error", 4000);
-    
-    setTimeout(() => { fecharModalVozIA(); }, 3000);
+    showToast("Erro ao processar áudio. Tente novamente.", "error", 4000);
+    fecharModalVozIA();
   }
 }
 
 async function cadastrarAlertaGeradoPorIA(dados) {
   const triagem = await analisarAlertaComIA(dados.tipo, dados.descricao);
-  if (!triagem.valido) {
-    showToast(`Alerta bloqueado pela triagem: ${triagem.motivo}`, 'error', 5000);
-    fecharModalVozIA();
-    return;
-  }
 
   const novoAlerta = {
     tipo: dados.tipo || "Outro",
@@ -1063,7 +920,7 @@ async function cadastrarAlertaGeradoPorIA(dados) {
     anonimo: perfilAnonimoAtual,
     autorPublico: perfilAnonimoAtual ? 'Anônimo' : (auth.currentUser.displayName || 'Usuário da Comunidade'),
     contemAnexo: false,
-    urlAnexo: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=150',
+    urlAnexo: null,
     criadoPorIA: true,
     severidade: triagem.severidade_corrigida,
     motivoTriagem: triagem.motivo
@@ -1071,12 +928,8 @@ async function cadastrarAlertaGeradoPorIA(dados) {
 
   db.collection("alertas").add(novoAlerta).then(() => {
     fecharModalVozIA();
-    showToast(`🚨 Alerta em ${novoAlerta.bairro} publicado no mapa!`, 'success');
+    showToast(`🚨 Alerta em ${novoAlerta.bairro} publicado!`, 'success');
     mapa.flyTo([dados.lat, dados.lng], 16, { animate: true });
-  }).catch((err) => {
-    console.error("Erro ao salvar alerta:", err);
-    showToast("Erro ao registrar o alerta no banco de dados.", "error");
-    fecharModalVozIA();
   });
 }
 
@@ -1085,237 +938,58 @@ function fecharModalVozIA() {
   if (modal) modal.style.display = 'none';
 }
 
-function mostrarPreviewArquivoModal(event) {
-  const arquivo = event.target.files?.[0];
-  const nome = document.getElementById('nomeArquivoTexto');
-  const preview = document.getElementById('modalExpPreview');
-  if (!arquivo) return;
-
-  if (nome) nome.innerText = arquivo.name;
-  if (preview && arquivo.type.startsWith('image/')) {
-    preview.src = URL.createObjectURL(arquivo);
-    preview.style.display = 'block';
-  } else if (preview) {
-    preview.removeAttribute('src');
-    preview.style.display = 'none';
-  }
-}
-
-async function salvarAlertaModalExpandido() {
-  if (!auth.currentUser) {
-    abrirModalLogin();
-    return;
-  }
-
-  const tipo = document.getElementById('modalExpTipo').value;
-  const bairro = document.getElementById('modalExpBairro').value.trim();
-  const descricao = document.getElementById('modalExpDescricao').value.trim();
-  const arquivo = document.getElementById('modalExpArquivo').files?.[0];
-
-  if (!bairro || !descricao || !ultimaLatUsuario || !ultimaLngUsuario) {
-    alert('Selecione o local no mapa e preencha os dados do alerta.');
-    return;
-  }
-
-  const triagem = await analisarAlertaComIA(tipo, descricao);
-  if (!triagem.valido) {
-    showToast(`Alerta bloqueado pela triagem: ${triagem.motivo}`, 'error', 5000);
-    return;
-  }
-
-  const alerta = {
-    tipo,
-    bairro,
-    descricao,
-    lat: ultimaLatUsuario,
-    lng: ultimaLngUsuario,
-    data: firebase.firestore.FieldValue.serverTimestamp(),
-    uidUsuario: auth.currentUser.uid,
-    anonimo: perfilAnonimoAtual,
-    autorPublico: perfilAnonimoAtual ? 'Anônimo' : (auth.currentUser.displayName || 'Usuário da Comunidade'),
-    contemAnexo: Boolean(arquivo),
-    severidade: triagem.severidade_corrigida,
-    motivoTriagem: triagem.motivo
-  };
-
-  try {
-    if (arquivo) {
-      const nomeSeguro = arquivo.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const referencia = firebase.storage().ref(`alertas/${auth.currentUser.uid}/${Date.now()}-${nomeSeguro}`);
-      await referencia.put(arquivo);
-      alerta.urlAnexo = await referencia.getDownloadURL();
-    }
-
-    await db.collection('alertas').add(alerta);
-    fecharModalAlertaExpandido();
-    showToast('Alerta publicado com sucesso!', 'success');
-  } catch (error) {
-    console.error('Erro ao salvar alerta:', error);
-    showToast('Não foi possível publicar o alerta.', 'error');
-  }
-}
-
 // ===================================================
-// 9. PREENCHIMENTO AUTOMÁTICO DE FORMULÁRIO COM IA (VOZ)
-// ===================================================
-
-function iniciarRelatoPorVozModal() {
-    // Verifica se o navegador suporta gravação de voz
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-        alert("Seu navegador não suporta reconhecimento de voz. Tente usar o Google Chrome.");
-        return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'pt-BR';
-    recognition.start();
-
-    const btnVoz = document.getElementById('btnVozModal');
-    if (!btnVoz) return;
-    const textoOriginal = btnVoz.innerHTML;
-
-    // Efeito visual para o usuário saber que o app está ouvindo
-    btnVoz.innerHTML = '🎙️ Ouvindo... Fale o que aconteceu!';
-    btnVoz.style.backgroundColor = '#ef4444'; // Fica vermelho
-
-    // Quando o usuário terminar de falar:
-    recognition.onresult = async function(event) {
-        const transcricao = event.results[0][0].transcript;
-
-        btnVoz.innerHTML = '🧠 IA Processando Relato...';
-        btnVoz.style.backgroundColor = '#f59e0b'; // Fica laranja
-
-        // Envia o áudio transformado em texto para o Gemini preencher o form
-        await autoPreencherComIA(transcricao);
-
-        // Restaura o botão
-        btnVoz.innerHTML = textoOriginal;
-        btnVoz.style.backgroundColor = '#8b5cf6'; // Volta pro roxo
-    };
-
-    recognition.onerror = function(event) {
-        alert("Não conseguimos captar sua voz. Tente novamente.");
-        btnVoz.innerHTML = textoOriginal;
-        btnVoz.style.backgroundColor = '#8b5cf6';
-    };
-}
-
-async function autoPreencherComIA(textoFalado) {
-    // Usa a chave que o Victor já configurou no seu projeto
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-
-    const prompt = `
-    Você é o assistente virtual do app "Alerta Bairro" em Manaus.
-    O usuário acabou de falar o seguinte no microfone: "${textoFalado}"
-
-    Sua tarefa é extrair as informações dessa frase e montar um JSON para preencher o formulário automaticamente.
-
-    REGRAS DE EXTRAÇÃO:
-    - "tipo": Tente encaixar em uma destas categorias exatas: "Roubo", "Falta de Luz", "Alagamento", "Acidente de Trânsito", "Desaparecimento", "Incêndio". Se não souber, retorne "Outros".
-    - "bairro": Se ele falar o nome de um bairro de Manaus (ex: Parque Dez, Compensa, Alvorada), coloque aqui. Se não falar, deixe em branco "".
-    - "descricao": Melhore a frase falada pelo usuário, corrigindo pequenos erros de português, deixando claro e direto para a polícia ou comunidade ler.
-
-    Retorne APENAS um objeto JSON válido, sem crases, neste exato formato:
-    {
-      "tipo": "Nome da Categoria",
-      "bairro": "Nome do Bairro",
-      "descricao": "Texto corrigido e formatado"
-    }`;
-
-    try {
-        const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }]
-            })
-        });
-
-        const data = await response.json();
-        const textoLimpo = data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
-        const resultado = JSON.parse(textoLimpo);
-
-        // Preenche os inputs do HTML automaticamente!
-        if (resultado.tipo) {
-            const selectTipo = document.getElementById('modalExpTipo');
-            if (selectTipo) selectTipo.value = resultado.tipo;
-        }
-        if (resultado.bairro) {
-            const inputBairro = document.getElementById('modalExpBairro');
-            if (inputBairro) inputBairro.value = resultado.bairro;
-        }
-        if (resultado.descricao) {
-            const inputDescricao = document.getElementById('modalExpDescricao');
-            if (inputDescricao) inputDescricao.value = resultado.descricao;
-        }
-
-        showToast('Campos preenchidos magicamente pela IA!', 'success');
-
-    } catch (err) {
-        console.error("Erro no auto-preenchimento:", err);
-        // Se a IA falhar, pelo menos joga o texto cru na descrição para o usuário não perder o que falou
-        const inputDescricao = document.getElementById('modalExpDescricao');
-        if (inputDescricao) inputDescricao.value = textoFalado;
-        showToast('Não foi possível categorizar, mas anotamos seu relato.', 'info');
-    }
-}
-
-// ===================================================
-// 10. MÓDULO DE CONFIGURAÇÕES DA CONTA
+// 9. CONFIGURAÇÕES E MODAIS PERFIL / LINHA DO TEMPO
 // ===================================================
 function abrirModalConfiguracoes() {
-    // Esconde o menuzinho suspenso do perfil primeiro
-    const menuPerfil = document.getElementById('menuFlutuantePerfil');
-    if (menuPerfil) menuPerfil.style.display = 'none';
-
-    // Abre a janela de configurações com animação
-    const modal = document.getElementById('modalConfiguracoes');
-    if (!modal) return;
-    modal.style.display = 'flex';
-    requestAnimationFrame(() => modal.classList.add('open'));
+  const menuPerfil = document.getElementById('menuFlutuantePerfil');
+  if (menuPerfil) menuPerfil.style.display = 'none';
+  const modal = document.getElementById('modalConfiguracoes');
+  if (modal) { modal.style.display = 'flex'; requestAnimationFrame(() => modal.classList.add('open')); }
 }
 
 function fecharModalConfiguracoes() {
-    const modal = document.getElementById('modalConfiguracoes');
-    if (!modal) return;
-    modal.classList.remove('open');
-    const remover = () => {
-      modal.style.display = 'none';
-      modal.removeEventListener('transitionend', remover);
-    };
-    modal.addEventListener('transitionend', remover);
+  const modal = document.getElementById('modalConfiguracoes');
+  if (!modal) return;
+  modal.classList.remove('open');
+  setTimeout(() => { modal.style.display = 'none'; }, 220);
 }
 
-// ===================================================
-// 11. PERFIL, BIO, ANONIMATO E HISTORICO
-// ===================================================
+function abrirSubmenuDisplay() {
+  document.getElementById('painelPrincipalConfig').style.display = 'none';
+  document.getElementById('submenuDisplayConfig').style.display = 'block';
+}
+
+function fecharSubmenuDisplay() {
+  document.getElementById('painelPrincipalConfig').style.display = 'block';
+  document.getElementById('submenuDisplayConfig').style.display = 'none';
+}
+
+function abrirSubmenuNotificacoes() {
+  document.getElementById('painelPrincipalConfig').style.display = 'none';
+  document.getElementById('submenuNotificacoes').style.display = 'block';
+}
+
+function fecharSubmenuNotificacoes() {
+  document.getElementById('painelPrincipalConfig').style.display = 'block';
+  document.getElementById('submenuNotificacoes').style.display = 'none';
+}
+
+function alternarPreferenciaPush() {
+  pushHabilitadoPeloUsuario = document.getElementById('switchPushNotificacao').checked;
+}
+
 function carregarPreferenciasPerfil(user) {
   if (!user) return Promise.resolve();
-
   return db.collection('usuarios').doc(user.uid).get().then(doc => {
     const dados = doc.exists ? doc.data() : {};
     perfilAnonimoAtual = dados.anonimo === true;
-  }).catch(error => {
-    console.error('Erro ao carregar preferências do perfil:', error);
-    perfilAnonimoAtual = false;
   });
 }
 
-function atualizarContadorBio() {
-  const campo = document.getElementById('inputEditBio');
-  const contador = document.getElementById('contadorBio');
-  if (campo && contador) contador.innerText = `${campo.value.length}/200`;
-}
-
 function alternarTelaEdicao(mostrarEdicao) {
-  const visualizacao = document.getElementById('telaVisualizacaoPerfil');
-  const edicao = document.getElementById('telaEdicaoPerfil');
-  if (!visualizacao || !edicao) return;
-
-  visualizacao.style.display = mostrarEdicao ? 'none' : 'block';
-  edicao.style.display = mostrarEdicao ? 'block' : 'none';
-  if (mostrarEdicao) atualizarContadorBio();
+  document.getElementById('telaVisualizacaoPerfil').style.display = mostrarEdicao ? 'none' : 'block';
+  document.getElementById('telaEdicaoPerfil').style.display = mostrarEdicao ? 'block' : 'none';
 }
 
 async function abrirModalPerfil() {
@@ -1326,45 +1000,19 @@ async function abrirModalPerfil() {
   fecharModalConfiguracoes();
   alternarTelaEdicao(false);
 
-  const foto = document.getElementById('imgPerfilAtual');
-  const nome = document.getElementById('nomePerfilAtual');
-  const inputNome = document.getElementById('inputEditNome');
-  if (foto) foto.src = user.photoURL || 'https://via.placeholder.com/80';
-  if (nome) nome.innerText = user.displayName || 'Usuário da Comunidade';
-  if (inputNome) inputNome.value = user.displayName || '';
+  document.getElementById('perfilFoto').src = user.photoURL || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2364748b"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+  document.getElementById('nomePerfilAtual').innerText = user.displayName || 'Usuário da Comunidade';
+  document.getElementById('inputEditNome').value = user.displayName || '';
 
   modal.style.display = 'flex';
   requestAnimationFrame(() => modal.classList.add('open'));
-
-  try {
-    const doc = await db.collection('usuarios').doc(user.uid).get();
-    const dados = doc.exists ? doc.data() : {};
-    const bio = dados.bio || 'Membro Comunitário';
-    perfilAnonimoAtual = dados.anonimo === true;
-
-    document.getElementById('bioPerfilAtual').innerText = bio;
-    document.getElementById('inputEditBio').value = dados.bio || '';
-    document.getElementById('checkAnonimo').checked = perfilAnonimoAtual;
-    document.getElementById('statusAnonimoPerfil').innerText = perfilAnonimoAtual ? 'Sim' : 'Não';
-    atualizarContadorBio();
-  } catch (error) {
-    console.error('Erro ao carregar perfil:', error);
-    showToast('Não foi possível carregar os dados do perfil.', 'error');
-  }
-
-  carregarHistoricoDoUsuario(user.uid);
 }
 
 function fecharModalPerfil() {
   const modal = document.getElementById('modalPerfilUsuario');
   if (!modal) return;
   modal.classList.remove('open');
-  const esconder = () => {
-    modal.style.display = 'none';
-    modal.removeEventListener('transitionend', esconder);
-  };
-  modal.addEventListener('transitionend', esconder);
-  setTimeout(esconder, 350);
+  setTimeout(() => { modal.style.display = 'none'; }, 220);
 }
 
 function voltarParaConfiguracoes() {
@@ -1374,78 +1022,96 @@ function voltarParaConfiguracoes() {
 
 async function salvarPerfilUsuario() {
   const user = auth.currentUser;
-  const botao = document.getElementById('btnSalvarPerfil');
-  if (!user || !botao) return;
+  if (!user) return;
 
   const novoNome = document.getElementById('inputEditNome').value.trim();
   const novaBio = document.getElementById('inputEditBio').value.trim();
   const anonimato = document.getElementById('checkAnonimo').checked;
-  if (!novoNome) {
-    showToast('Informe um nome de exibição.', 'error');
+
+  await user.updateProfile({ displayName: novoNome });
+  await db.collection('usuarios').doc(user.uid).set({
+    nome: novoNome,
+    bio: novaBio,
+    anonimo: anonimato
+  }, { merge: true });
+
+  perfilAnonimoAtual = anonimato;
+  document.getElementById('nomePerfilAtual').innerText = novoNome;
+  document.getElementById('bioPerfilAtual').innerText = novaBio || 'Sem biografia definida.';
+  showToast('Perfil atualizado com sucesso!', 'success');
+  alternarTelaEdicao(false);
+}
+
+function abrirLinhaDoTempo() {
+  const user = auth.currentUser;
+  if (!user) { abrirModalLogin(); return; }
+  fecharModalConfiguracoes();
+  const modal = document.getElementById('modalLinhaDoTempo');
+  if (modal) { modal.style.display = 'flex'; requestAnimationFrame(() => modal.classList.add('open')); }
+  carregarLinhaDoTempoUsuario(user.uid);
+}
+
+function fecharLinhaDoTempo() {
+  const modal = document.getElementById('modalLinhaDoTempo');
+  if (!modal) return;
+  modal.classList.remove('open');
+  setTimeout(() => { modal.style.display = 'none'; }, 220);
+}
+
+function carregarLinhaDoTempoUsuario(uid) {
+  const container = document.getElementById('listaLinhaDoTempo');
+  if (!container || !uid) return;
+
+  db.collection('alertas').where('uidUsuario', '==', uid).get().then(snapshot => {
+    if (snapshot.empty) {
+      container.innerHTML = '<p style="text-align:center; font-size:12px; color:#64748b; padding:20px;">Você ainda não registrou nenhum alerta.</p>';
+      return;
+    }
+    const registros = snapshot.docs.map(doc => doc.data());
+    container.innerHTML = registros.map(alerta => `
+      <div class="card-alerta-radar-item severidade-${alerta.severidade || 'MEDIA'}" onclick="irParaAlerta(${alerta.lat}, ${alerta.lng}); fecharLinhaDoTempo();" style="cursor:pointer;">
+        <div class="topo-card-radar">
+          <strong>🚨 ${escaparHTML(alerta.tipo)}</strong>
+          <span class="meta-card-radar">📍 ${escaparHTML(alerta.bairro)}</span>
+        </div>
+        <div class="corpo-card-radar">${escaparHTML(alerta.descricao)}</div>
+      </div>
+    `).join('');
+  });
+}
+
+function abrirModalHistoricoRadar() {
+  const modal = document.getElementById('modalHistoricoRadar');
+  if (modal) { modal.style.display = 'flex'; requestAnimationFrame(() => modal.classList.add('open')); }
+  renderizarAlertasRadarArea();
+}
+
+function fecharModalHistoricoRadar() {
+  const modal = document.getElementById('modalHistoricoRadar');
+  if (!modal) return;
+  modal.classList.remove('open');
+  setTimeout(() => { modal.style.display = 'none'; }, 220);
+}
+
+function renderizarAlertasRadarArea() {
+  const container = document.getElementById('listaAlertasRadarArea');
+  if (!container || !ultimaLatUsuario || !ultimaLngUsuario) return;
+
+  const pontoUsuario = L.latLng(ultimaLatUsuario, ultimaLngUsuario);
+  let ocorrenciasPerimetro = alertas.filter(a => a.lat && a.lng && pontoUsuario.distanceTo(L.latLng(a.lat, a.lng)) <= 500);
+
+  if (ocorrenciasPerimetro.length === 0) {
+    container.innerHTML = '<p style="text-align:center; font-size:12px; color:#64748b; padding:20px;">Nenhum alerta nos 500m do radar.</p>';
     return;
   }
 
-  botao.disabled = true;
-  botao.innerText = 'Salvando...';
-  try {
-    await user.updateProfile({ displayName: novoNome });
-    await db.collection('usuarios').doc(user.uid).set({
-      nome: novoNome,
-      bio: novaBio,
-      anonimo: anonimato,
-      atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-
-    perfilAnonimoAtual = anonimato;
-    document.getElementById('nomePerfilAtual').innerText = novoNome;
-    document.getElementById('bioPerfilAtual').innerText = novaBio || 'Membro Comunitário';
-    document.getElementById('statusAnonimoPerfil').innerText = anonimato ? 'Sim' : 'Não';
-    atualizarDadosPerfilTela(user);
-    showToast('Perfil atualizado com sucesso!', 'success');
-    alternarTelaEdicao(false);
-  } catch (error) {
-    console.error('Erro ao salvar perfil:', error);
-    showToast('Não foi possível salvar o perfil.', 'error');
-  } finally {
-    botao.disabled = false;
-    botao.innerText = 'Salvar';
-  }
+  container.innerHTML = ocorrenciasPerimetro.map(alerta => `
+    <div class="card-alerta-radar-item severidade-${alerta.severidade || 'MEDIA'}">
+      <div class="topo-card-radar">
+        <strong>🚨 ${escaparHTML(alerta.tipo)}</strong>
+        <span class="meta-card-radar">📍 ${Math.round(pontoUsuario.distanceTo(L.latLng(alerta.lat, alerta.lng)))}m</span>
+      </div>
+      <div class="corpo-card-radar">${escaparHTML(alerta.descricao)}</div>
+    </div>
+  `).join('');
 }
-
-function carregarHistoricoDoUsuario(uid) {
-  const container = document.getElementById('listaHistoricoUsuario');
-  const total = document.getElementById('totalAlertasPerfil');
-  if (!container || !uid) return;
-
-  container.innerHTML = '<p class="perfil-historico-vazio">Carregando histórico...</p>';
-  db.collection('alertas').where('uidUsuario', '==', uid).limit(20).get()
-    .then(snapshot => {
-      const registros = snapshot.docs.map(doc => doc.data()).sort((a, b) => {
-        const dataA = a.data?.toMillis ? a.data.toMillis() : 0;
-        const dataB = b.data?.toMillis ? b.data.toMillis() : 0;
-        return dataB - dataA;
-      }).slice(0, 5);
-
-      if (total) total.innerText = snapshot.size;
-      if (!registros.length) {
-        container.innerHTML = '<p class="perfil-historico-vazio">Você ainda não fez nenhum alerta.</p>';
-        return;
-      }
-
-      container.innerHTML = registros.map(alerta => {
-        const data = alerta.data?.toDate ? alerta.data.toDate().toLocaleDateString('pt-BR') : 'Recente';
-        return `<div class="perfil-historico-item">
-          <div><strong>🚨 ${escaparHTML(alerta.tipo)}</strong><small>📍 ${escaparHTML(alerta.bairro)}</small></div>
-          <div class="perfil-historico-meta"><strong>${escaparHTML(alerta.severidade || 'MEDIA')}</strong><br>${data}</div>
-        </div>`;
-      }).join('');
-    })
-    .catch(error => {
-      console.error('Erro ao carregar histórico:', error);
-      if (total) total.innerText = '0';
-      container.innerHTML = '<p class="perfil-historico-erro">Não foi possível carregar seu histórico.</p>';
-    });
-}
-
-const campoBioPerfil = document.getElementById('inputEditBio');
-if (campoBioPerfil) campoBioPerfil.addEventListener('input', atualizarContadorBio);

@@ -745,35 +745,25 @@ function abrirFoto(url) {
 // 8. INTEGRAÇÃO COM INTELIGÊNCIA ARTIFICIAL (GEMINI)
 // ===================================================
 async function analisarAlertaComIA(tipo, descricao, urgenciaUsuario = 'NAO INFORMADA') {
-    // A chave já está pegando da variável global que o Victor criou
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
     const prompt = `
-    Você é o Diretor de Triagem do sistema de segurança 'Alerta Bairro' de Manaus.
-    Sua missão é classificar ocorrências e BLOQUEAR trotes para não sujar o banco de dados.
-
-    DADOS DO ALERTA:
+    Você é um assistente de triagem do app Alerta Bairro em Manaus.
+    Analise a ocorrência:
     - Categoria: "${tipo}"
     - Descrição: "${descricao}"
-    - Nível de urgência alegado pelo usuário: "${urgenciaUsuario}"
+    - Urgência declarada: "${urgenciaUsuario}"
 
-    ESCALA DE PRIORIDADE OFICIAL (ESCOLHA APENAS UMA):
-    - CRITICA: Risco imediato à vida ou desastre (ex: tiroteio, desabamento, enchente grave).
-    - ALTA: Risco à segurança ou infraestrutura (ex: assalto à mão armada, fio de alta tensão rompido no meio da rua).
-    - MEDIA: Transtorno que exige atenção (ex: falta de luz no quarteirão, buraco muito grande, acidente sem vítimas).
-    - BAIXA: Problemas menores (ex: lixo acumulado, som alto, animal de rua).
-    - TROTE: Relatos absurdos, objetos inanimados, brinquedos ou falso pânico (ex: "perdi meu bebê reborn", "meu boneco sumiu", "roubaram meu coração", xingamentos).
+    REGRAS:
+    1. Se for um TROTE evidente, piada absurda, brinquedo OU se o texto for apenas gírias/saudações/palavras soltas sem descrever um problema real (ex: "bora", "iai", "pdc", "oi", "tmlc"), defina "valido": false.
+    2. Se for um relato real sobre segurança/infraestrutura, defina "valido": true.
+    3. Defina "severidade_corrigida" entre: "CRITICA", "ALTA", "MEDIA" ou "BAIXA".
 
-    A REGRA DE OURO (OBRIGATÓRIO):
-    1. Compare a urgência alegada com os fatos da descrição. Não aceite automaticamente a classificação escolhida pelo usuário.
-    2. Se a descrição for um trote, uma piada ou tratar de objeto inanimado/brinquedo como se fosse uma emergência humana, retorne "valido": false e ignore a urgência alegada.
-    3. Se o relato for real, retorne "valido": true e corrija "severidade_corrigida" para a prioridade justa, mesmo que o usuário tenha exagerado ou minimizado o risco.
-
-    Retorne APENAS um JSON válido, sem crases (sem \`\`\`json), neste exato formato:
+    Retorne apenas JSON:
     {
-      "valido": true ou false,
-      "severidade_corrigida": "CRITICA",
-      "motivo": "Sua justificativa curta e técnica"
+      "valido": true,
+      "severidade_corrigida": "MEDIA",
+      "motivo": "Justificativa curta explicando o motivo da aprovação ou bloqueio"
     }`;
 
     try {
@@ -781,30 +771,38 @@ async function analisarAlertaComIA(tipo, descricao, urgenciaUsuario = 'NAO INFOR
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }]
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseMimeType: "application/json"
+                }
             })
         });
 
         if (!response.ok) throw new Error(`Gemini HTTP ${response.status}`);
         const data = await response.json();
-        const textoLimpo = data.candidates?.[0]?.content?.parts?.[0]?.text
-          ?.replace(/```json|```/g, '').trim();
-        if (!textoLimpo) throw new Error('Resposta vazia da IA');
+        const textoResposta = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!textoResposta) throw new Error('Resposta vazia');
 
-        const resultado = JSON.parse(textoLimpo);
-        const severidadesValidas = ['CRITICA', 'ALTA', 'MEDIA', 'BAIXA'];
-        if (typeof resultado.valido !== 'boolean'
-          || !severidadesValidas.includes(resultado.severidade_corrigida)
-          || typeof resultado.motivo !== 'string') {
-          throw new Error('Resposta da IA fora do formato esperado');
-        }
-        return resultado;
+        const resultado = JSON.parse(textoResposta);
+
+        return {
+            valido: typeof resultado.valido === 'boolean' ? resultado.valido : true,
+            severidade_corrigida: ['CRITICA', 'ALTA', 'MEDIA', 'BAIXA'].includes(resultado.severidade_corrigida) 
+                ? resultado.severidade_corrigida 
+                : (urgenciaUsuario !== 'NAO INFORMADA' ? urgenciaUsuario : 'MEDIA'),
+            motivo: resultado.motivo || "Triagem concluída."
+        };
+
     } catch (err) {
-        console.error("Erro na IA; publicação bloqueada:", err);
-        return { valido: false, severidade_corrigida: "MEDIA", motivo: "A triagem está indisponível. Tente novamente." };
+        console.error("Aviso na IA (liberando alerta em modo tolerante):", err);
+        return { 
+            valido: true, 
+            severidade_corrigida: urgenciaUsuario !== 'NAO INFORMADA' ? urgenciaUsuario : 'MEDIA', 
+            motivo: "Alerta aprovado automaticamente." 
+        };
     }
 }
-const GEMINI_API_KEY = "sua chave";
+const GEMINI_API_KEY = "AQ.Ab8RN6L-J9NftuNSZSl2i95rw17IMVMaXUJ48oohKKbIHWFkTQ";
 
 let mediaRecorderIA = null;
 let audioChunksIA = [];

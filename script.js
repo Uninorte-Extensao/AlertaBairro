@@ -36,11 +36,65 @@ let nivelAcessoUsuarioAtual = "comum";
 let ultimoPopup = null; 
 let perfilAnonimoAtual = false;
 
+// Inicialização do mapa Leaflet
 const mapa = L.map('mapa', { attributionControl: false, zoomControl: false }).setView([-3.1190, -60.0217], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapa);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(mapa);
+
+// Função formatadora de datas e horários dos alertas
+function formatarDataHora(dataFirestore) {
+  if (!dataFirestore) return "Agora";
+  let date;
+  if (dataFirestore.toDate) {
+    date = dataFirestore.toDate();
+  } else if (dataFirestore instanceof Date) {
+    date = dataFirestore;
+  } else if (typeof dataFirestore === 'number' || typeof dataFirestore === 'string') {
+    date = new Date(dataFirestore);
+  } else {
+    return "Agora";
+  }
+
+  const dia = String(date.getDate()).padStart(2, '0');
+  const mes = String(date.getMonth() + 1).padStart(2, '0');
+  const horas = String(date.getHours()).padStart(2, '0');
+  const minutos = String(date.getMinutes()).padStart(2, '0');
+
+  return `${dia}/${mes} às ${horas}:${minutos}`;
+}
+
+// ATUALIZAÇÃO REFINADA DO ESTILO DO MAPA
+function atualizarEstiloMapaPorHorario() {
+  const mapaEl = document.getElementById('mapa');
+  if (!mapaEl) return;
+
+  const temaSalvo = localStorage.getItem('temaAlertaBairro');
+  
+  if (temaSalvo === 'escuro') {
+    mapaEl.classList.add('mapa-noite');
+    return;
+  }
+  
+  if (temaSalvo === 'claro') {
+    mapaEl.classList.remove('mapa-noite');
+    return;
+  }
+
+  // Se o utilizador não escolheu explicitamente, calcula o horário local
+  const horaLocalUsuario = new Date().getHours();
+  const ehNoite = horaLocalUsuario < 6 || horaLocalUsuario >= 18;
+
+  if (ehNoite) {
+    mapaEl.classList.add('mapa-noite');
+  } else {
+    mapaEl.classList.remove('mapa-noite');
+  }
+}
+
+atualizarEstiloMapaPorHorario();
+setInterval(atualizarEstiloMapaPorHorario, 15 * 60 * 1000);
 
 // ===================================================
-// FORMULÁRIO DO MAPA
+// FORMULÁRIO DO MAPA (NOVO ALERTA)
 // ===================================================
 function obterPopupFormularioHTML() {
   let opcoesSelect = `
@@ -63,20 +117,35 @@ function obterPopupFormularioHTML() {
   }
 
   return `
-    <div style="font-family: sans-serif; min-width:180px;">
-      <h3 style="font-size:13px; margin-bottom:6px; color:#0A2540;">Novo Alerta (${nivelAcessoUsuarioAtual.toUpperCase()})</h3>
-      <select id="popupTipo" style="padding:4px; font-size:11px; width:100%;">
-        ${opcoesSelect}
-      </select>
-      <input type="text" id="popupBairro" placeholder="Buscando bairro..." readonly style="padding:4px; font-size:11px; margin-top:4px; width:100%;">
-      <select id="popupUrgencia" style="padding:4px; font-size:11px; margin-top:4px; width:100%; border:1px solid #ef4444; color:#b91c1c; font-weight:600;">
-        <option value="BAIXA">🟢 Perigo baixo</option>
-        <option value="MEDIA" selected>🟡 Perigo médio</option>
-        <option value="ALTA">🟠 Perigo alto</option>
-        <option value="CRITICA">🔴 Emergência crítica</option>
-      </select>
-      <textarea id="popupDescricao" rows="2" placeholder="Descreva o incidente..." style="padding:4px; font-size:11px; margin-top:4px; width:100%;"></textarea>
-      <button onclick="salvarAlertaMapa()" style="margin-top:6px; padding:6px; width:100%; background:#D9383A; color:white; border:none; border-radius:4px; font-weight:600; cursor:pointer;">Salvar Alerta</button>
+    <div class="popup-novo-alerta-card">
+      <div class="popup-na-cabecalho">
+        <span>🚨 Novo Alerta (${nivelAcessoUsuarioAtual.toUpperCase()})</span>
+        <button onclick="mapa.closePopup()" class="btn-fechar-popup-na">×</button>
+      </div>
+      <div class="popup-na-campo">
+        <label>Tipo de Ocorrência</label>
+        <select id="popupTipo" class="input-popup-na">
+          ${opcoesSelect}
+        </select>
+      </div>
+      <div class="popup-na-campo">
+        <label>Bairro / Localização</label>
+        <input type="text" id="popupBairro" class="input-popup-na" placeholder="Buscando bairro..." readonly autocomplete="off">
+      </div>
+      <div class="popup-na-campo">
+        <label>Nível de Perigo</label>
+        <select id="popupUrgencia" class="input-popup-na seletor-urgencia-na">
+          <option value="BAIXA">🟢 Perigo baixo</option>
+          <option value="MEDIA" selected>🟡 Perigo médio</option>
+          <option value="ALTA">🟠 Perigo alto</option>
+          <option value="CRITICA">🔴 Emergência crítica</option>
+        </select>
+      </div>
+      <div class="popup-na-campo">
+        <label>Descrição do Ocorrido</label>
+        <textarea id="popupDescricao" class="input-popup-na" rows="2" placeholder="Descreva o incidente..." autocomplete="off"></textarea>
+      </div>
+      <button onclick="salvarAlertaMapa()" class="btn-salvar-alerta-na">Salvar Alerta</button>
     </div>`;
 }
 
@@ -86,14 +155,6 @@ mapa.on('click', function(e) {
 
   if (!auth.currentUser) {
     abrirModalLogin();
-    return;
-  }
-
-  if (typeof selecionandoLocalManualmente !== 'undefined' && selecionandoLocalManualmente === true) {
-    ultimaLatUsuario = e.latlng.lat;
-    ultimaLngUsuario = e.latlng.lng;
-    selecionandoLocalManualmente = false; 
-    abrirModalAlertaExpandido();
     return;
   }
 
@@ -108,7 +169,7 @@ function abrirPopupCriacaoAlerta(lat, lng) {
     mapa.closePopup(ultimoPopup);
   }
 
-  ultimoPopup = L.popup({ closeOnClick: false })
+  ultimoPopup = L.popup({ closeOnClick: false, className: 'leaflet-popup-novo-alerta' })
     .setLatLng([lat, lng])
     .setContent(obterPopupFormularioHTML())
     .openOn(mapa);
@@ -169,6 +230,40 @@ function irParaAlerta(lat, lng) {
   });
 }
 
+function gerarHTMLPopupAlerta(alerta) {
+  const ehAnonimo = alerta.anonimo === true;
+  const autorNome = ehAnonimo ? 'Utilizador Anónimo' : (alerta.autorPublico || 'Utilizador da Comunidade');
+  const fallbackFoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+  const autorFoto = ehAnonimo ? fallbackFoto : (alerta.autorFoto || fallbackFoto);
+  
+  const verificado = alerta.autorVerificado === true;
+  const badgeVerificacao = verificado
+    ? `<span class="badge-verificado positivo" title="Conta 100% Verificada pelo Sistema">🟢 Verificado</span>`
+    : `<span class="badge-verificado pendente" title="Ainda não possui verificação completa">⚪ Não verificado</span>`;
+
+  const severidade = alerta.severidade || 'MEDIA';
+
+  return `
+    <div class="popup-alerta-card">
+      <div class="popup-alerta-header">
+        <div class="popup-autor-info">
+          <img src="${escaparHTML(autorFoto)}" class="popup-autor-avatar" alt="Foto">
+          <div class="popup-autor-detalhes">
+            <strong>${escaparHTML(autorNome)}</strong>
+            ${badgeVerificacao}
+          </div>
+        </div>
+        <span class="popup-tag-prioridade ${severidade}">${severidade}</span>
+      </div>
+      <div class="popup-alerta-corpo">
+        <div class="popup-alerta-tipo">🚨 ${escaparHTML(alerta.tipo)}</div>
+        <p class="popup-alerta-desc">${escaparHTML(alerta.descricao)}</p>
+        <small class="popup-alerta-bairro">📍 ${escaparHTML(alerta.bairro)} • ${formatarDataHora(alerta.data)}</small>
+      </div>
+    </div>
+  `;
+}
+
 function gerarMapaDeCalorDinamico() {
   camadasRegiaoCalor.forEach(c => mapa.removeLayer(c));
   camadasRegiaoCalor = [];
@@ -217,13 +312,19 @@ function gerarMapaDeCalorDinamico() {
 
     let stringTipos = "";
     for (const tipo in grupo.tipos) {
-      stringTipos += `<br>• ${tipo}: ${grupo.tipos[tipo]}`;
+      stringTipos += `<div style="font-size:11.5px; margin-top:2px;">• <strong>${tipo}</strong>: ${grupo.tipos[tipo]}</div>`;
     }
 
     const popupEstatistica = `
-      <div style="font-family: sans-serif; font-size: 12px; color: #212529; min-width: 160px;">
-        <strong style="font-size:13px; color:#D9383A;">📊 Área Crítica: ${grupo.bairro}</strong><br>
-        <strong>Total: ${grupo.total}</strong><hr style="margin:6px 0; border:0; border-top:1px solid #dee2e6;">
+      <div class="popup-area-critica-card">
+        <div class="popup-ac-topo">
+          <span style="font-size:20px;">📊</span>
+          <div>
+            <h4>Área Crítica: ${escaparHTML(grupo.bairro)}</h4>
+            <small>${grupo.total} ocorrência(s) registrada(s)</small>
+          </div>
+        </div>
+        <hr style="border:0; border-top:1px solid #1E293B; margin:6px 0;">
         ${stringTipos}
       </div>
     `;
@@ -238,10 +339,10 @@ function gerarMapaDeCalorDinamico() {
     }).addTo(mapa);
 
     const iconeGrafico = L.divIcon({
-        className: 'icone-estatistica',
-        html: `<div style="font-size: 22px; text-shadow: 0px 0px 4px white; cursor: pointer;">📊</div>`,
-        iconSize: [26, 26],
-        iconAnchor: [13, 13]
+        className: 'icone-estatistica-badge',
+        html: `<div class="badge-area-critica-pill">📊 ${grupo.total} alertas</div>`,
+        iconSize: [80, 26],
+        iconAnchor: [-12, 32]
     });
 
     const marcadorEstatistica = L.marker([grupo.lat, grupo.lng], { icon: iconeGrafico })
@@ -288,6 +389,14 @@ function atualizarInterfaceVisívelComFiltro() {
         const tipo = escaparHTML(alerta.tipo);
         const bairro = escaparHTML(alerta.bairro);
         const descricao = escaparHTML(alerta.descricao);
+        const dataHora = formatarDataHora(alerta.data);
+
+        const ehAnonimo = alerta.anonimo === true;
+        const autorNome = ehAnonimo ? 'Utilizador Anónimo' : (alerta.autorPublico || 'Utilizador da Comunidade');
+        const fallbackFoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+        const autorFoto = ehAnonimo ? fallbackFoto : (alerta.autorFoto || fallbackFoto);
+        const verificado = alerta.autorVerificado === true;
+
         let cssClass = '';
         if(alerta.tipo.includes('Roubo')) cssClass = 'alerta-roubo';
         else if(alerta.tipo.includes('Luz')) cssClass = 'alerta-falta-luz';
@@ -322,14 +431,23 @@ function atualizarInterfaceVisívelComFiltro() {
 
         lista.innerHTML += `
         <div class="alerta-card ${cssClass} ${cssSeveridade}" onclick="irParaAlerta(${alerta.lat}, ${alerta.lng})" style="cursor: pointer;">
-          <div class="coluna-texto-alerta">
+          <div class="alerta-autor-row">
+            <div class="alerta-autor-dados">
+              <img src="${escaparHTML(autorFoto)}" class="alerta-avatar-mini" alt="Autor">
+              <span class="alerta-nome-autor">${escaparHTML(autorNome)} ${verificado ? '🟢' : ''}</span>
+            </div>
+            <span class="alerta-data-hora">🕒 ${dataHora}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="coluna-texto-alerta">
               <div class="alerta-header">
                 <span class="alerta-titulo-tipo">🚨 ${tipo}</span>
                 <span class="alerta-bairro">📍 ${bairro}</span>
-            </div>
+              </div>
               <div class="alerta-corpo">${descricao}</div>
+            </div>
+            ${htmlImagemDireita}
           </div>
-          ${htmlImagemDireita}
         </div>`;
       });
     }
@@ -345,7 +463,8 @@ function atualizarInterfaceVisívelComFiltro() {
         icon: obterIconeAlerta(severidade),
         tipoAlerta: alerta.tipo
       }).addTo(mapa);
-      marcador.bindPopup(`<strong>🚨 ${escaparHTML(alerta.tipo)}</strong><br>Prioridade: ${escaparHTML(severidade)}<br>${escaparHTML(alerta.descricao)}`);
+      
+      marcador.bindPopup(gerarHTMLPopupAlerta(alerta));
       marcador.on('click', function(e) { L.DomEvent.stopPropagation(e); });
       marcadores.push(marcador);
     }
@@ -369,14 +488,18 @@ function filtrarAlertasPorTipo(tipo, botaoClicado) {
 }
 
 // ===================================================
-// 4. MODO ESCURO E TEMAS (RESTAURADO E CORRIGIDO)
+// 4. MODO ESCURO E ALTERNÂNCIA DE TEMA REFINADA
 // ===================================================
 function alternarModoEscuro(ativo) {
+  const mapaEl = document.getElementById('mapa');
+
   if (ativo) {
     document.body.classList.add('modo-escuro');
+    if (mapaEl) mapaEl.classList.add('mapa-noite');
     localStorage.setItem('temaAlertaBairro', 'escuro');
   } else {
     document.body.classList.remove('modo-escuro');
+    if (mapaEl) mapaEl.classList.remove('mapa-noite');
     localStorage.setItem('temaAlertaBairro', 'claro');
   }
 
@@ -393,12 +516,21 @@ function alternarModoEscuro(ativo) {
 function carregarTemaSalvo() {
   const temaSalvo = localStorage.getItem('temaAlertaBairro');
   const switchEscuro = document.getElementById('switchModoEscuro');
+  const mapaEl = document.getElementById('mapa');
+
   if (temaSalvo === 'escuro') {
     document.body.classList.add('modo-escuro');
+    if (mapaEl) mapaEl.classList.add('mapa-noite');
     if (switchEscuro) switchEscuro.checked = true;
+  } else if (temaSalvo === 'claro') {
+    document.body.classList.remove('modo-escuro');
+    if (mapaEl) mapaEl.classList.remove('mapa-noite');
+    if (switchEscuro) switchEscuro.checked = false;
   } else {
+    // Caso padrão inicial sem preferência guardada
     document.body.classList.remove('modo-escuro');
     if (switchEscuro) switchEscuro.checked = false;
+    atualizarEstiloMapaPorHorario();
   }
 }
 
@@ -408,10 +540,19 @@ document.addEventListener('DOMContentLoaded', carregarTemaSalvo);
 // 5. AUTENTICAÇÃO E PERFIL
 // ===================================================
 function login() {
-  const email = document.getElementById('email').value;
-  const senha = document.getElementById('senha').value;
+  const emailEl = document.getElementById('email');
+  const senhaEl = document.getElementById('senha');
+  const email = emailEl ? emailEl.value : '';
+  const senha = senhaEl ? senhaEl.value : '';
+
   if (!email || !senha) return alert('Preencha os campos.');
-  auth.signInWithEmailAndPassword(email, senha).then(() => { loginExitosa(); }).catch(() => alert("Dados incorretos."));
+
+  auth.signInWithEmailAndPassword(email, senha)
+    .then(() => {
+      if (senhaEl) senhaEl.value = '';
+      loginExitosa();
+    })
+    .catch(() => alert("Dados incorretos."));
 }
 
 function loginComGoogle() {
@@ -419,9 +560,53 @@ function loginComGoogle() {
   auth.signInWithPopup(provider).then((cred) => {
     db.collection("usuarios").doc(cred.user.uid).get().then(doc => {
       if(!doc.exists) db.collection("usuarios").doc(cred.user.uid).set({ email: cred.user.email, nivelAcesso: "comum" });
+      
+      const senhaEl = document.getElementById('senha');
+      if (senhaEl) senhaEl.value = '';
+
       loginExitosa();
     });
   });
+}
+
+async function carregarDadosEPreferenciasPerfil(user) {
+  if (!user) return;
+  
+  const fallbackFoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239aa0a6'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+
+  document.getElementById('perfilNome').innerText = user.displayName || "Usuário Comunitário";
+  document.getElementById('perfilEmail').innerText = user.email || "sem-email@provedor.com";
+
+  try {
+    const doc = await db.collection('usuarios').doc(user.uid).get();
+    
+    let fotoFinal = user.photoURL || fallbackFoto;
+    let nomeFinal = user.displayName || "Usuário Comunitário";
+
+    if (doc.exists) {
+      const dados = doc.data();
+      perfilAnonimoAtual = dados.anonimo === true;
+      
+      if (dados.photoURL && dados.photoURL.trim() !== '') {
+        fotoFinal = dados.photoURL;
+      }
+      if (dados.nome && dados.nome.trim() !== '') {
+        nomeFinal = dados.nome;
+      }
+    }
+
+    document.getElementById('perfilNome').innerText = nomeFinal;
+    document.getElementById('perfilFoto').src = fotoFinal;
+    
+    const imgNav = document.getElementById('navPerfilFoto');
+    if (imgNav) imgNav.src = fotoFinal;
+
+    const imgPerfilAtual = document.getElementById('imgPerfilAtual');
+    if (imgPerfilAtual) imgPerfilAtual.src = fotoFinal;
+
+  } catch (err) {
+    console.error("Erro ao carregar dados do Firestore:", err);
+  }
 }
 
 function loginExitosa() {
@@ -433,8 +618,7 @@ function loginExitosa() {
   
   const user = auth.currentUser;
   if (user) { 
-    atualizarDadosPerfilTela(user); 
-    carregarPreferenciasPerfil(user);
+    carregarDadosEPreferenciasPerfil(user);
   }
 }
 
@@ -457,9 +641,14 @@ function sair() {
 
 function criarConta() {
   const email = document.getElementById('email').value;
-  const senha = document.getElementById('senha').value;
+  const senhaEl = document.getElementById('senha');
+  const senha = senhaEl ? senhaEl.value : '';
+
   if (!email || !senha) return alert('Campos vazios.');
-  auth.createUserWithEmailAndPassword(email, senha).then(() => { loginExitosa(); }).catch(err => alert(err.message));
+  auth.createUserWithEmailAndPassword(email, senha).then(() => { 
+    if (senhaEl) senhaEl.value = '';
+    loginExitosa(); 
+  }).catch(err => alert(err.message));
 }
 
 function abrirModalLogin() { 
@@ -472,19 +661,15 @@ function abrirModalLogin() {
 function fecharModalLogin() { 
   const m = document.getElementById('loginPage'); 
   if (!m) return;
+  
+  const senhaEl = document.getElementById('senha');
+  if (senhaEl) senhaEl.value = '';
+  
   m.classList.remove('open');
   setTimeout(() => { m.style.display = 'none'; }, 220);
 }
 
 function toggleMenuPerfil(e) { e.stopPropagation(); const m = document.getElementById('menuFlutuantePerfil'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; }
-
-function atualizarDadosPerfilTela(user) {
-  if (user) {
-    document.getElementById('perfilNome').innerText = user.displayName || "Usuário Comunitário";
-    document.getElementById('perfilEmail').innerText = user.email || "sem-email@provedor.com";
-    document.getElementById('perfilFoto').src = user.photoURL || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239aa0a6'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
-  }
-}
 
 // ===================================================
 // 6. SONAR / GEOLOCALIZAÇÃO
@@ -507,7 +692,7 @@ function iniciarRadar() {
 
     if (txtDet) txtDet.innerText = "Ative o perímetro de rastreio de 500m.";
     if (divS) {
-      divS.style.background = document.body.classList.contains('modo-escuro') ? "#131C2E" : "#F1F5F9";
+      divS.style.background = document.body.classList.contains('modo-escuro') ? "#131C2E" : "#F8FAFC";
       divS.style.borderColor = document.body.classList.contains('modo-escuro') ? "#1E293B" : "#E2E8F0";
     }
     if (txtRadar) {
@@ -589,10 +774,30 @@ function verificarAlertasProximos() {
 
     const { nivelPerigo, totalAlertas, alertasProximos } = calcularNivelPerigo();
 
+    const ehEscuro = document.body.classList.contains('modo-escuro');
+
     const cores = {
-        0: { statusBg: 'rgba(34, 197, 94, 0.15)', statusBorder: '#22c55e', statusText: '#15803d', titulo: 'Perímetro Seguro', detalhe: 'Nenhuma atividade suspeita próxima.' },
-        1: { statusBg: 'rgba(234, 179, 8, 0.15)', statusBorder: '#eab308', statusText: '#a16207', titulo: 'Ameaça Detectada', detalhe: `${totalAlertas} alerta(s) próximo(s)` },
-        2: { statusBg: 'rgba(239, 68, 68, 0.2)', statusBorder: '#ef4444', statusText: '#b91c1c', titulo: 'Perímetro em Alerta', detalhe: 'Incidentes recentes detectados a menos de 500m.' }
+        0: { 
+          statusBg: ehEscuro ? 'rgba(34, 197, 94, 0.15)' : '#F0FDF4', 
+          statusBorder: '#22c55e', 
+          statusText: ehEscuro ? '#86efac' : '#15803d', 
+          titulo: 'Perímetro Seguro', 
+          detalhe: 'Nenhuma atividade suspeita próxima.' 
+        },
+        1: { 
+          statusBg: ehEscuro ? 'rgba(234, 179, 8, 0.15)' : '#FEFCE8', 
+          statusBorder: '#eab308', 
+          statusText: ehEscuro ? '#fef08a' : '#a16207', 
+          titulo: 'Ameaça Detectada', 
+          detalhe: `${totalAlertas} alerta(s) próximo(s)` 
+        },
+        2: { 
+          statusBg: ehEscuro ? 'rgba(239, 68, 68, 0.2)' : '#FEF2F2', 
+          statusBorder: '#ef4444', 
+          statusText: ehEscuro ? '#fca5a5' : '#b91c1c', 
+          titulo: 'Perímetro em Alerta', 
+          detalhe: 'Incidentes recentes detectados a menos de 500m.' 
+        }
     };
 
     const corConfig = cores[nivelPerigo];
@@ -656,6 +861,17 @@ async function salvarAlertaMapa(){
     return;
   }
 
+  let ehVerificado = false;
+  let fotoAutor = auth.currentUser.photoURL || null;
+  try {
+    const userDoc = await db.collection('usuarios').doc(auth.currentUser.uid).get();
+    if (userDoc.exists) {
+      const uData = userDoc.data();
+      ehVerificado = uData.verificado === true;
+      if (uData.photoURL) fotoAutor = uData.photoURL;
+    }
+  } catch(e){}
+
   const novo = {
     tipo, bairro, descricao,
     lat: latClick || mapa.getCenter().lat, 
@@ -663,7 +879,9 @@ async function salvarAlertaMapa(){
     data: firebase.firestore.FieldValue.serverTimestamp(),
     uidUsuario: auth.currentUser.uid,
     anonimo: perfilAnonimoAtual,
-    autorPublico: perfilAnonimoAtual ? 'Anônimo' : (auth.currentUser.displayName || 'Usuário da Comunidade'),
+    autorPublico: perfilAnonimoAtual ? 'Anônimo' : (auth.currentUser.displayName || 'Utilizador da Comunidade'),
+    autorFoto: fotoAutor,
+    autorVerificado: ehVerificado,
     urgenciaAlegada: urgenciaUsuario,
     severidade: triagem.severidade_corrigida,
     motivoTriagem: triagem.motivo,
@@ -734,7 +952,7 @@ function abrirFoto(url) {
 // ===================================================
 // 8. INTEGRAÇÃO COM GEMINI IA
 // ===================================================
-const GEMINI_API_KEY = "AQ.Ab8RN6L-J9NftuNSZSl2i95rw17IMVMaXUJ48oohKKbIHWFkTQ";
+const GEMINI_API_KEY = "Chave_Aleatoria";
 
 async function analisarAlertaComIA(tipo, descricao, urgenciaUsuario = 'NAO INFORMADA') {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
@@ -909,6 +1127,17 @@ async function processarAudioComGemini(base64Audio, mimeType) {
 async function cadastrarAlertaGeradoPorIA(dados) {
   const triagem = await analisarAlertaComIA(dados.tipo, dados.descricao);
 
+  let ehVerificado = false;
+  let fotoAutor = auth.currentUser.photoURL || null;
+  try {
+    const userDoc = await db.collection('usuarios').doc(auth.currentUser.uid).get();
+    if (userDoc.exists) {
+      const uData = userDoc.data();
+      ehVerificado = uData.verificado === true;
+      if (uData.photoURL) fotoAutor = uData.photoURL;
+    }
+  } catch(e){}
+
   const novoAlerta = {
     tipo: dados.tipo || "Outro",
     bairro: dados.bairro,
@@ -918,7 +1147,9 @@ async function cadastrarAlertaGeradoPorIA(dados) {
     data: firebase.firestore.FieldValue.serverTimestamp(),
     uidUsuario: auth.currentUser.uid,
     anonimo: perfilAnonimoAtual,
-    autorPublico: perfilAnonimoAtual ? 'Anônimo' : (auth.currentUser.displayName || 'Usuário da Comunidade'),
+    autorPublico: perfilAnonimoAtual ? 'Anônimo' : (auth.currentUser.displayName || 'Utilizador da Comunidade'),
+    autorFoto: fotoAutor,
+    autorVerificado: ehVerificado,
     contemAnexo: false,
     urlAnexo: null,
     criadoPorIA: true,
@@ -939,7 +1170,7 @@ function fecharModalVozIA() {
 }
 
 // ===================================================
-// 9. CONFIGURAÇÕES E MODAIS PERFIL / LINHA DO TEMPO
+// 9. CONFIGURAÇÕES E MODAIS PERFIL / SEGURANÇA
 // ===================================================
 function abrirModalConfiguracoes() {
   const menuPerfil = document.getElementById('menuFlutuantePerfil');
@@ -979,17 +1210,139 @@ function alternarPreferenciaPush() {
   pushHabilitadoPeloUsuario = document.getElementById('switchPushNotificacao').checked;
 }
 
-function carregarPreferenciasPerfil(user) {
-  if (!user) return Promise.resolve();
-  return db.collection('usuarios').doc(user.uid).get().then(doc => {
-    const dados = doc.exists ? doc.data() : {};
-    perfilAnonimoAtual = dados.anonimo === true;
-  });
-}
-
 function alternarTelaEdicao(mostrarEdicao) {
   document.getElementById('telaVisualizacaoPerfil').style.display = mostrarEdicao ? 'none' : 'block';
   document.getElementById('telaEdicaoPerfil').style.display = mostrarEdicao ? 'block' : 'none';
+}
+
+function atualizarPreviewFoto(url) {
+  const img = document.getElementById('previewFotoEdit');
+  const fallback = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+  if (img) {
+    img.src = (url && url.trim() !== '') ? url : fallback;
+  }
+}
+
+function atualizarContadorBio() {
+  const campo = document.getElementById('inputEditBio');
+  const contador = document.getElementById('contadorBio');
+  if (campo && contador) {
+    contador.innerText = `${campo.value.length}/200`;
+  }
+}
+
+function carregarFotoArquivoLocal(input) {
+  if (input.files && input.files[0]) {
+    const arquivo = input.files[0];
+
+    const leitor = new FileReader();
+    leitor.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        const maxDim = 150;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxDim) {
+            height *= maxDim / width;
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width *= maxDim / height;
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const base64Comprimido = canvas.toDataURL('image/jpeg', 0.8);
+
+        const inputURL = document.getElementById('inputEditFotoURL');
+        if (inputURL) {
+          inputURL.value = base64Comprimido;
+        }
+        
+        atualizarPreviewFoto(base64Comprimido);
+        showToast('Imagem otimizada e pronta para salvar!', 'success');
+      };
+      img.src = e.target.result;
+    };
+
+    leitor.readAsDataURL(arquivo);
+  }
+}
+
+// VALIDAÇÃO MATEMÁTICA DE CPF (MÓDULO 11)
+function validarCPF(cpfStr) {
+  if (!cpfStr) return false;
+  const cpf = cpfStr.replace(/[^\d]+/g, '');
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+
+  let soma = 0;
+  for (let i = 1; i <= 9; i++) soma += parseInt(cpf.substring(i - 1, i)) * (11 - i);
+  let resto = (soma * 10) % 11;
+  if (resto === 10 || resto === 11) resto = 0;
+  if (resto !== parseInt(cpf.substring(9, 10))) return false;
+
+  soma = 0;
+  for (let i = 1; i <= 10; i++) soma += parseInt(cpf.substring(i - 1, i)) * (12 - i);
+  resto = (soma * 10) % 11;
+  if (resto === 10 || resto === 11) resto = 0;
+  if (resto !== parseInt(cpf.substring(10, 11))) return false;
+
+  return true;
+}
+
+function formatarCPF(input) {
+  let v = input.value.replace(/\D/g, '');
+  if (v.length > 11) v = v.slice(0, 11);
+  v = v.replace(/(\d{3})(\d)/, '$1.$2');
+  v = v.replace(/(\d{3})(\d)/, '$1.$2');
+  v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  input.value = v;
+
+  const dica = document.getElementById('dicaValidadeCPF');
+  if (dica && v.length === 14) {
+    const ehValido = validarCPF(v);
+    dica.innerText = ehValido ? "🟢 CPF matematicamente válido!" : "🔴 CPF inválido. Verifique os dígitos.";
+    dica.style.color = ehValido ? "#22c55e" : "#ef4444";
+  } else if (dica) {
+    dica.innerText = "O CPF é único por conta e passa por validação matemática de dígitos.";
+    dica.style.color = "#94a3b8";
+  }
+}
+
+function formatarTelefone(input) {
+  let v = input.value.replace(/\D/g, '');
+  if (v.length > 11) v = v.slice(0, 11);
+  v = v.replace(/^(\d{2})(\d)/g, '($1) $2');
+  v = v.replace(/(\d)(\d{4})$/, '$1-$2');
+  input.value = v;
+}
+
+function calcularProgressoVerificacao(user, dadosFirestore) {
+  let pontos = 0;
+  const emailOk = user && user.emailVerified === true;
+  const telOk = Boolean(dadosFirestore && dadosFirestore.telefone && dadosFirestore.telefone.replace(/\D/g, '').length >= 10);
+  const cpfOk = Boolean(dadosFirestore && dadosFirestore.cpf && validarCPF(dadosFirestore.cpf));
+
+  if (emailOk) pontos += 34;
+  if (telOk) pontos += 33;
+  if (cpfOk) pontos += 33;
+
+  return {
+    porcentagem: pontos,
+    emailOk,
+    telOk,
+    cpfOk,
+    completo: pontos === 100
+  };
 }
 
 async function abrirModalPerfil() {
@@ -1000,10 +1353,69 @@ async function abrirModalPerfil() {
   fecharModalConfiguracoes();
   alternarTelaEdicao(false);
 
-  document.getElementById('perfilFoto').src = user.photoURL || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2364748b"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
-  document.getElementById('nomePerfilAtual').innerText = user.displayName || 'Usuário da Comunidade';
-  document.getElementById('inputEditNome').value = user.displayName || '';
+  const fallbackFoto = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2364748b"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
 
+  let fotoURL = user.photoURL || '';
+  let nomeExibicao = user.displayName || '';
+  let dadosFirestore = {};
+
+  try {
+    const doc = await db.collection('usuarios').doc(user.uid).get();
+    if (doc.exists) {
+      dadosFirestore = doc.data();
+      if (dadosFirestore.photoURL && dadosFirestore.photoURL.trim() !== '') fotoURL = dadosFirestore.photoURL;
+      if (dadosFirestore.nome && dadosFirestore.nome.trim() !== '') nomeExibicao = dadosFirestore.nome;
+      
+      document.getElementById('bioPerfilAtual').innerText = dadosFirestore.bio || 'Sem biografia definida.';
+      document.getElementById('inputEditBio').value = dadosFirestore.bio || '';
+      document.getElementById('inputEditBairro').value = dadosFirestore.bairroFavorito || '';
+      document.getElementById('checkAnonimo').checked = dadosFirestore.anonimo === true;
+      document.getElementById('statusAnonimoPerfil').innerText = dadosFirestore.anonimo === true ? 'Sim' : 'Não';
+    }
+  } catch (e) {
+    console.error("Erro ao carregar dados do perfil:", e);
+  }
+
+  await user.reload();
+  const progresso = calcularProgressoVerificacao(user, dadosFirestore);
+
+  const seloEl = document.getElementById('txtPerfilSeloVerificacao');
+  if (seloEl) {
+    seloEl.innerText = progresso.completo 
+      ? "🟢 Conta 100% Verificada" 
+      : `⚪ Não Verificada (${progresso.porcentagem}%)`;
+  }
+
+  const tooltipBox = document.getElementById('tooltipChecklistVerificacao');
+  if (tooltipBox) {
+    tooltipBox.innerHTML = `
+      <div style="font-size:11px; color:#FFFFFF;">
+        <strong style="display:block; margin-bottom:8px; color:#E5B842; font-size:12px;">Checklist de Segurança</strong>
+        <div style="display:flex; justify-content:space-between; margin-bottom:6px; align-items:center;">
+          <span>📧 E-mail verificado</span>
+          <span>${progresso.emailOk ? '✅' : '❌'}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:6px; align-items:center;">
+          <span>📱 Telemóvel de recuperação</span>
+          <span>${progresso.telOk ? '✅' : '❌'}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span>🪪 CPF do titular válido</span>
+          <span>${progresso.cpfOk ? '✅' : '❌'}</span>
+        </div>
+        <hr style="border:0; border-top:1px solid #1E293B; margin:8px 0;">
+        <small style="color:#94A3B8; font-size:10px;">Acesse "Segurança e Verificação" no menu para concluir.</small>
+      </div>
+    `;
+  }
+
+  document.getElementById('imgPerfilAtual').src = fotoURL || fallbackFoto;
+  document.getElementById('nomePerfilAtual').innerText = nomeExibicao || 'Utilizador da Comunidade';
+  document.getElementById('inputEditNome').value = nomeExibicao;
+  document.getElementById('inputEditFotoURL').value = fotoURL;
+  atualizarPreviewFoto(fotoURL);
+
+  atualizarContadorBio();
   modal.style.display = 'flex';
   requestAnimationFrame(() => modal.classList.add('open'));
 }
@@ -1025,21 +1437,181 @@ async function salvarPerfilUsuario() {
   if (!user) return;
 
   const novoNome = document.getElementById('inputEditNome').value.trim();
+  const novaFotoURL = document.getElementById('inputEditFotoURL').value.trim();
   const novaBio = document.getElementById('inputEditBio').value.trim();
+  const novoBairro = document.getElementById('inputEditBairro').value.trim();
   const anonimato = document.getElementById('checkAnonimo').checked;
 
-  await user.updateProfile({ displayName: novoNome });
-  await db.collection('usuarios').doc(user.uid).set({
-    nome: novoNome,
-    bio: novaBio,
-    anonimo: anonimato
-  }, { merge: true });
+  try {
+    try {
+      await user.updateProfile({
+        displayName: novoNome,
+        photoURL: novaFotoURL
+      });
+    } catch (authError) {
+      console.warn("Aviso ao atualizar photoURL no Auth, salvando no Firestore:", authError);
+    }
 
-  perfilAnonimoAtual = anonimato;
-  document.getElementById('nomePerfilAtual').innerText = novoNome;
-  document.getElementById('bioPerfilAtual').innerText = novaBio || 'Sem biografia definida.';
-  showToast('Perfil atualizado com sucesso!', 'success');
-  alternarTelaEdicao(false);
+    await db.collection('usuarios').doc(user.uid).set({
+      nome: novoNome,
+      photoURL: novaFotoURL,
+      bio: novaBio,
+      bairroFavorito: novoBairro,
+      anonimo: anonimato
+    }, { merge: true });
+
+    perfilAnonimoAtual = anonimato;
+
+    const fallbackFoto = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2364748b"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+    document.getElementById('nomePerfilAtual').innerText = novoNome || 'Utilizador da Comunidade';
+    document.getElementById('bioPerfilAtual').innerText = novaBio || 'Sem biografia definida.';
+    document.getElementById('imgPerfilAtual').src = novaFotoURL || fallbackFoto;
+    document.getElementById('perfilNome').innerText = novoNome || 'Utilizador';
+    document.getElementById('perfilFoto').src = novaFotoURL || fallbackFoto;
+
+    const imgNav = document.getElementById('navPerfilFoto');
+    if (imgNav) imgNav.src = novaFotoURL || fallbackFoto;
+
+    document.getElementById('statusAnonimoPerfil').innerText = anonimato ? 'Sim' : 'Não';
+
+    showToast('Perfil atualizado com sucesso!', 'success');
+    alternarTelaEdicao(false);
+  } catch (err) {
+    showToast('Erro ao salvar alterações do perfil.', 'error');
+    console.error(err);
+  }
+}
+
+// ===================================================
+// MODAL DE SEGURANÇA E UNICIDADE DO CPF
+// ===================================================
+async function abrirModalSeguranca() {
+  const user = auth.currentUser;
+  if (!user) { abrirModalLogin(); return; }
+
+  const menuPerfil = document.getElementById('menuFlutuantePerfil');
+  if (menuPerfil) menuPerfil.style.display = 'none';
+
+  const modal = document.getElementById('modalSeguranca');
+  if (!modal) return;
+
+  await user.reload();
+  const emailVerif = user.emailVerified;
+  document.getElementById('txtEmailVerificadoStatus').innerText = emailVerif 
+    ? '🟢 E-mail confirmado' 
+    : '🔴 E-mail pendente de confirmação';
+
+  let dadosFirestore = {};
+  try {
+    const doc = await db.collection('usuarios').doc(user.uid).get();
+    if (doc.exists) {
+      dadosFirestore = doc.data();
+      document.getElementById('inputSegurancaTelefone').value = dadosFirestore.telefone || '';
+      document.getElementById('inputSegurancaCPF').value = dadosFirestore.cpf || '';
+    }
+  } catch(e) {}
+
+  const progresso = calcularProgressoVerificacao(user, dadosFirestore);
+  atualizarUIStatusVerificacao(progresso);
+
+  modal.style.display = 'flex';
+  requestAnimationFrame(() => modal.classList.add('open'));
+}
+
+function fecharModalSeguranca() {
+  const modal = document.getElementById('modalSeguranca');
+  if (!modal) return;
+  modal.classList.remove('open');
+  setTimeout(() => { modal.style.display = 'none'; }, 220);
+}
+
+function atualizarUIStatusVerificacao(progresso) {
+  const icone = document.getElementById('iconeStatusGeralVerificacao');
+  const titulo = document.getElementById('tituloStatusGeralVerificacao');
+  const desc = document.getElementById('descStatusGeralVerificacao');
+  const txtPct = document.getElementById('porcentagemProgressoTexto');
+  const barraPreenchimento = document.getElementById('barraProgressoPreenchimento');
+
+  if (txtPct) txtPct.innerText = `${progresso.porcentagem}%`;
+  if (barraPreenchimento) barraPreenchimento.style.width = `${progresso.porcentagem}%`;
+
+  if (progresso.completo) {
+    if (icone) icone.innerText = '🟢';
+    if (titulo) titulo.innerText = 'Conta 100% Verificada';
+    if (desc) desc.innerText = 'Os seus alertas possuem o selo de autenticidade ativo para toda a comunidade.';
+  } else {
+    if (icone) icone.innerText = '⚪';
+    if (titulo) titulo.innerText = 'Conta Parcialmente Verificada';
+    let pendencias = [];
+    if (!progresso.emailOk) pendencias.push('confirmação de e-mail');
+    if (!progresso.telOk) pendencias.push('telemóvel');
+    if (!progresso.cpfOk) pendencias.push('CPF válido');
+
+    if (desc) desc.innerText = `Pendente de: ${pendencias.join(', ')}.`;
+  }
+}
+
+async function guardarDadosSeguranca() {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const tel = document.getElementById('inputSegurancaTelefone').value.trim();
+  const cpf = document.getElementById('inputSegurancaCPF').value.trim();
+
+  if (cpf.length > 0) {
+    if (!validarCPF(cpf)) {
+      showToast('CPF inválido! Verifique os números digitados.', 'error', 4000);
+      return;
+    }
+
+    try {
+      const cpfQuery = await db.collection('usuarios').where('cpf', '==', cpf).get();
+      let cpfEmUsoPorOutro = false;
+      cpfQuery.forEach(doc => {
+        if (doc.id !== user.uid) cpfEmUsoPorOutro = true;
+      });
+
+      if (cpfEmUsoPorOutro) {
+        showToast('Este CPF já está associado a outra conta registrada!', 'error', 4500);
+        return;
+      }
+    } catch(e) {
+      console.error("Erro ao verificar unicidade do CPF:", e);
+    }
+  }
+
+  await user.reload();
+  const dadosParaGuardar = { telefone: tel, cpf: cpf };
+  const progresso = calcularProgressoVerificacao(user, dadosParaGuardar);
+  dadosParaGuardar.verificado = progresso.completo;
+
+  try {
+    await db.collection('usuarios').doc(user.uid).set(dadosParaGuardar, { merge: true });
+
+    atualizarUIStatusVerificacao(progresso);
+    showToast('Dados de segurança salvos com sucesso!', 'success');
+    fecharModalSeguranca();
+  } catch(e) {
+    showToast('Erro ao guardar dados de segurança.', 'error');
+  }
+}
+
+function enviarEmailVerificacaoFirebase() {
+  const user = auth.currentUser;
+  if (user) {
+    user.sendEmailVerification()
+      .then(() => showToast('E-mail de verificação enviado! Verifique a sua caixa de entrada.', 'success', 4000))
+      .catch(() => showToast('Erro ao enviar e-mail de verificação.', 'error'));
+  }
+}
+
+function solicitarRedefinicaoSenha() {
+  const user = auth.currentUser;
+  if (user && user.email) {
+    auth.sendPasswordResetEmail(user.email)
+      .then(() => showToast('Link de redefinição enviado para o seu e-mail!', 'success', 4000))
+      .catch(() => showToast('Erro ao solicitar redefinição.', 'error'));
+  }
 }
 
 function abrirLinhaDoTempo() {
@@ -1068,15 +1640,26 @@ function carregarLinhaDoTempoUsuario(uid) {
       return;
     }
     const registros = snapshot.docs.map(doc => doc.data());
-    container.innerHTML = registros.map(alerta => `
-      <div class="card-alerta-radar-item severidade-${alerta.severidade || 'MEDIA'}" onclick="irParaAlerta(${alerta.lat}, ${alerta.lng}); fecharLinhaDoTempo();" style="cursor:pointer;">
-        <div class="topo-card-radar">
-          <strong>🚨 ${escaparHTML(alerta.tipo)}</strong>
-          <span class="meta-card-radar">📍 ${escaparHTML(alerta.bairro)}</span>
+    const fallbackFoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+
+    container.innerHTML = registros.map(alerta => {
+      const ehAnonimo = alerta.anonimo === true;
+      const autorNome = ehAnonimo ? 'Utilizador Anónimo' : (alerta.autorPublico || 'Utilizador da Comunidade');
+      const autorFoto = ehAnonimo ? fallbackFoto : (alerta.autorFoto || fallbackFoto);
+
+      return `
+        <div class="card-alerta-radar-item severidade-${alerta.severidade || 'MEDIA'}" onclick="irParaAlerta(${alerta.lat}, ${alerta.lng}); fecharLinhaDoTempo();" style="cursor:pointer;">
+          <div class="topo-card-radar">
+            <div class="autor-card-radar">
+              <img src="${escaparHTML(autorFoto)}" class="avatar-autor-radar" alt="Autor">
+              <strong>${escaparHTML(autorNome)}</strong>
+            </div>
+            <span class="meta-card-radar">📍 ${escaparHTML(alerta.bairro)} • 🕒 ${formatarDataHora(alerta.data)}</span>
+          </div>
+          <div class="corpo-card-radar"><strong>🚨 ${escaparHTML(alerta.tipo)}:</strong> ${escaparHTML(alerta.descricao)}</div>
         </div>
-        <div class="corpo-card-radar">${escaparHTML(alerta.descricao)}</div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   });
 }
 
@@ -1105,13 +1688,24 @@ function renderizarAlertasRadarArea() {
     return;
   }
 
-  container.innerHTML = ocorrenciasPerimetro.map(alerta => `
-    <div class="card-alerta-radar-item severidade-${alerta.severidade || 'MEDIA'}">
-      <div class="topo-card-radar">
-        <strong>🚨 ${escaparHTML(alerta.tipo)}</strong>
-        <span class="meta-card-radar">📍 ${Math.round(pontoUsuario.distanceTo(L.latLng(alerta.lat, alerta.lng)))}m</span>
+  const fallbackFoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+
+  container.innerHTML = ocorrenciasPerimetro.map(alerta => {
+    const ehAnonimo = alerta.anonimo === true;
+    const autorNome = ehAnonimo ? 'Utilizador Anónimo' : (alerta.autorPublico || 'Utilizador da Comunidade');
+    const autorFoto = ehAnonimo ? fallbackFoto : (alerta.autorFoto || fallbackFoto);
+
+    return `
+      <div class="card-alerta-radar-item severidade-${alerta.severidade || 'MEDIA'}" onclick="irParaAlerta(${alerta.lat}, ${alerta.lng}); fecharModalHistoricoRadar();" style="cursor:pointer;">
+        <div class="topo-card-radar">
+          <div class="autor-card-radar">
+            <img src="${escaparHTML(autorFoto)}" class="avatar-autor-radar" alt="Autor">
+            <strong>${escaparHTML(autorNome)}</strong>
+          </div>
+          <span class="meta-card-radar">📍 ${Math.round(pontoUsuario.distanceTo(L.latLng(alerta.lat, alerta.lng)))}m • 🕒 ${formatarDataHora(alerta.data)}</span>
+        </div>
+        <div class="corpo-card-radar"><strong>🚨 ${escaparHTML(alerta.tipo)}:</strong> ${escaparHTML(alerta.descricao)}</div>
       </div>
-      <div class="corpo-card-radar">${escaparHTML(alerta.descricao)}</div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }

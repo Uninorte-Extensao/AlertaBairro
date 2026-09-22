@@ -20,7 +20,10 @@
       <button id="btnNavInicio" onclick="mostrarPagina('inicio')">Início</button>
       <button id="btnNavMapa" onclick="mostrarPagina('mapaPagina')">Mapa ao Vivo</button>
       <button id="btnNavLogin" onclick="abrirModalLogin()">Entrar</button>
-      <button id="btnNavPerfil" onclick="toggleMenuPerfil(event)" style="display: none;">Meu Perfil ▾</button>
+      <button id="btnNavPerfil" onclick="toggleMenuPerfil(event)" class="btn-nav-perfil-avatar" style="display: none;">
+        <img id="navPerfilFoto" class="avatar-nav-top" src="" alt="Perfil">
+        <span>Meu Perfil</span> ▾
+      </button>
     </nav>
   </header>
 
@@ -29,7 +32,7 @@
     <div class="gemini-perfil-user-info">
       <img id="perfilFoto" class="avatar-menu-usuario" src="" alt="Foto de perfil">
       <div class="gemini-perfil-user-text">
-        <h4 id="perfilNome">Usuário</h4>
+        <h4 id="perfilNome">Utilizador</h4>
         <p id="perfilEmail">email@provedor.com</p>
       </div>
     </div>
@@ -37,7 +40,8 @@
     <ul class="gemini-menu-opcoes">
       <li onclick="abrirModalPerfil()">👤 Seu perfil</li>
       <li onclick="abrirModalConfiguracoes()">⚙️ Configurações da conta</li>
-      <li onclick="abrirLinhaDoTempo()">📈 Sua linha do tempo</li>
+      <li onclick="abrirModalSeguranca()">🛡️ Segurança e Verificação</li>
+      <li onclick="abrirLinhaDoTempo()">📈 Alertas gerados pelo usuário</li>
       <li class="opcao-sair" onclick="sair()">🚪 Sair</li>
     </ul>
   </div>
@@ -49,7 +53,7 @@
     <div id="inicio" class="pagina ativa landing-page">
       <div class="landing-content">
         
-        <!-- HERO SECTION COM IMAGEM DO MAPA DE MADEIRA -->
+        <!-- HERO SECTION -->
         <section class="hero-section">
           <div class="hero-text">
             <span class="badge-tag">Plataforma Comunitária Manaus</span>
@@ -61,7 +65,7 @@
             </div>
           </div>
           <div class="hero-imagem-container">
-            <img src="https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&w=800&q=80" alt="Mapa do Mundo em Madeira" class="hero-img-destaque">
+            <img src="https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&w=800&q=80" alt="Mapa de Madeira" class="hero-img-destaque">
           </div>
         </section>
 
@@ -81,7 +85,7 @@
           </div>
         </section>
 
-        <!-- RECURSOS E COMO FUNCIONA -->
+        <!-- RECURSOS -->
         <section class="recursos-secao">
           <h3 class="titulo-secao">Como funciona a rede colaborativa</h3>
           <div class="grid-recursos">
@@ -177,10 +181,14 @@
   <div id="loginPage" class="modal-login">
     <div class="modal-conteudo">
       <h2 style="font-size: 18px; margin-bottom: 12px; color: #0A2540;">Acessar a Plataforma</h2>
-      <input type="email" id="email" placeholder="Seu e-mail" style="width:100%; padding:8px; margin-bottom:8px; border:1px solid #cbd5e1; border-radius:6px;">
-      <input type="password" id="senha" placeholder="Sua senha" style="width:100%; padding:8px; margin-bottom:12px; border:1px solid #cbd5e1; border-radius:6px;">
       
-      <button onclick="login()" style="width:100%; padding:10px; background:#0A2540; color:white; border:none; border-radius:6px; font-weight:600; cursor:pointer; margin-bottom:8px;">Entrar</button>
+      <form id="formLogin" autocomplete="off" onsubmit="event.preventDefault(); login();">
+        <input type="email" id="email" autocomplete="username" placeholder="Seu e-mail" style="width:100%; padding:8px; margin-bottom:8px; border:1px solid #cbd5e1; border-radius:6px;">
+        <input type="password" id="senha" autocomplete="current-password" placeholder="Sua senha" style="width:100%; padding:8px; margin-bottom:12px; border:1px solid #cbd5e1; border-radius:6px;">
+        
+        <button type="submit" style="width:100%; padding:10px; background:#0A2540; color:white; border:none; border-radius:6px; font-weight:600; cursor:pointer; margin-bottom:8px;">Entrar</button>
+      </form>
+
       <button onclick="loginComGoogle()" style="width:100%; padding:10px; background:#4285F4; color:white; border:none; border-radius:6px; font-weight:600; cursor:pointer; margin-bottom:8px;">Entrar com Google</button>
       <button onclick="criarConta()" style="width:100%; padding:8px; background:transparent; border:1px solid #0A2540; color:#0A2540; border-radius:6px; font-weight:600; cursor:pointer;">Criar Conta</button>
       <button onclick="fecharModalLogin()" style="width:100%; padding:6px; background:transparent; border:none; color:#64748b; font-size:12px; cursor:pointer; margin-top:8px;">Cancelar</button>
@@ -201,6 +209,19 @@
         <h3 id="nomePerfilAtual">Nome do Usuário</h3>
         <p id="bioPerfilAtual" class="perfil-bio">Sua biografia aqui</p>
 
+        <!-- BADGE DE VERIFICAÇÃO E TOOLTIP DE PROGRESSO -->
+        <div class="perfil-verificacao-card">
+          <div class="perfil-verificacao-status-row">
+            <span id="txtPerfilSeloVerificacao" class="badge-selo-perfil">⚪ Não Verificado (0%)</span>
+            <div class="info-tooltip-wrapper">
+              <span class="icone-info-tooltip">i</span>
+              <div id="tooltipChecklistVerificacao" class="tooltip-checklist-box">
+                <!-- Preenchido via JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="perfil-status-anonimo-card">
           <span class="label-anonimo">Publicar como Anônimo:</span>
           <span id="statusAnonimoPerfil" class="badge-anonimo">Não</span>
@@ -211,43 +232,75 @@
         </button>
       </div>
 
+      <!-- TELA DE EDIÇÃO DE PERFIL -->
       <div id="telaEdicaoPerfil" class="perfil-tela" style="display: none;">
-        <form class="form-edit-perfil" onsubmit="event.preventDefault(); salvarPerfilUsuario();">
+        <form class="form-edit-perfil" autocomplete="off" onsubmit="event.preventDefault(); salvarPerfilUsuario();">
+          
+          <div class="card-edit-secao">
+            <label class="label-secao-titulo">Fotografia de Perfil</label>
+            <div class="secao-avatar-edit-box">
+              <div class="preview-avatar-wrapper">
+                <img id="previewFotoEdit" class="avatar-edit-preview" src="" alt="Preview da Foto">
+                <span class="badge-cam-icon">📷</span>
+              </div>
+              <div class="campo-grupo-edit" style="flex: 1;">
+                <label for="inputEditFotoURL">URL ou Imagem Local</label>
+                <div class="input-grupo-upload">
+                  <input type="text" id="inputEditFotoURL" autocomplete="off" placeholder="https://exemplo.com/sua-foto.jpg" oninput="atualizarPreviewFoto(this.value)">
+                  <input type="file" id="inputEditFotoFile" accept="image/*" style="display: none;" onchange="carregarFotoArquivoLocal(this)">
+                  <button type="button" class="btn-upload-arquivo" onclick="document.getElementById('inputEditFotoFile').click()" title="Escolher imagem do dispositivo">
+                    📁 Dispositivo
+                  </button>
+                </div>
+                <small class="dica-campo">Cole um link da web ou selecione uma imagem do seu dispositivo.</small>
+              </div>
+            </div>
+          </div>
+
           <label class="card-opcao-anonimo">
             <div class="topo-checkbox-row">
               <input type="checkbox" id="checkAnonimo">
               <span>Publicar alertas como anônimo</span>
             </div>
             <p class="descricao-opcao-anonimo">
-              Seu nome não será mostrado publicamente nos alertas.
+              Seu nome e foto não serão exibidos publicamente nos alertas registrados.
             </p>
           </label>
 
-          <div class="campo-grupo-edit">
-            <label for="inputEditNome">Nome de exibição</label>
-            <input type="text" id="inputEditNome" placeholder="Seu nome no aplicativo">
-          </div>
+          <div class="card-edit-secao">
+            <label class="label-secao-titulo">Informações Pessoais</label>
+            
+            <div class="campo-grupo-edit">
+              <label for="inputEditNome">Nome de exibição</label>
+              <input type="text" id="inputEditNome" autocomplete="off" placeholder="Seu nome no aplicativo">
+            </div>
 
-          <div class="campo-grupo-edit">
-            <label for="inputEditBio">Bio</label>
-            <textarea id="inputEditBio" maxlength="200" placeholder="Fale um pouco sobre você..." oninput="atualizarContadorBio()"></textarea>
-            <span id="contadorBio" class="contador-caracteres-bio">0/200</span>
+            <div class="campo-grupo-edit">
+              <label for="inputEditBairro">Bairro Habitual / Residência</label>
+              <input type="text" id="inputEditBairro" autocomplete="off" placeholder="Ex: Petrópolis, Parque 10, Centro...">
+            </div>
+
+            <div class="campo-grupo-edit">
+              <label for="inputEditBio">Biografia</label>
+              <textarea id="inputEditBio" autocomplete="off" maxlength="200" rows="3" placeholder="Fale um pouco sobre você..." oninput="atualizarContadorBio()"></textarea>
+              <span id="contadorBio" class="contador-caracteres-bio">0/200</span>
+            </div>
           </div>
 
           <div class="botoes-acoes-edit">
             <button type="button" class="btn-cancelar-edit" onclick="alternarTelaEdicao(false)">Cancelar</button>
-            <button type="submit" id="btnSalvarPerfil" class="btn-salvar-edit">Salvar</button>
+            <button type="submit" id="btnSalvarPerfil" class="btn-salvar-edit">Salvar Alterações</button>
           </div>
         </form>
       </div>
     </div>
   </div>
 
-  <!-- MODAL: LINHA DO TEMPO -->
+  <!-- MODAL: ALERTAS GERADOS PELO USUÁRIO -->
   <div id="modalLinhaDoTempo" class="modal-login">
     <div class="modal-conteudo modal-radar-quadrado">
       <div class="cabecalho-modal-radar">
-        <h3>📈 Sua linha do tempo</h3>
+        <h3>📈 Alertas gerados pelo usuário</h3>
         <button class="perfil-fechar" onclick="fecharLinhaDoTempo()">×</button>
       </div>
       <div id="listaLinhaDoTempo" class="container-cards-radar-area"></div>
@@ -258,11 +311,10 @@
   <div id="modalConfiguracoes" class="modal-login">
     <div class="modal-conteudo" style="padding: 0; overflow: hidden; width: 380px;">
       
-      <!-- PAINEL PRINCIPAL -->
       <div id="painelPrincipalConfig">
-        <div style="background: #0A2540; color: white; padding: 16px; display: flex; justify-content: space-between; align-items: center;">
+        <div class="cabecalho-modal-radar" style="margin: 0; padding: 16px; border-radius: 12px 12px 0 0;">
           <h3 style="margin: 0; font-size: 16px;">Configurações</h3>
-          <button onclick="fecharModalConfiguracoes()" style="background: transparent; border: none; color: white; font-size: 18px; cursor: pointer;">×</button>
+          <button onclick="fecharModalConfiguracoes()" class="perfil-fechar">×</button>
         </div>
 
         <div class="lista-configuracoes">
@@ -277,7 +329,7 @@
           <div class="item-config" onclick="abrirLinhaDoTempo()">
             <div class="icone-config">📈</div>
             <div class="texto-config">
-              <h4>Sua Linha do tempo</h4>
+              <h4>Alertas gerados pelo usuário</h4>
               <p>Veja o histórico de alertas que você relatou</p>
             </div>
           </div>
@@ -302,15 +354,15 @@
 
       <!-- SUBMENU: DISPLAY E TEMA -->
       <div id="submenuDisplayConfig" style="display: none;">
-        <div style="background: #0A2540; color: white; padding: 14px 16px; display: flex; align-items: center; gap: 10px;">
-          <button onclick="fecharSubmenuDisplay()" style="background: transparent; border: none; color: white; font-size: 18px; cursor: pointer;">←</button>
+        <div class="cabecalho-modal-radar" style="margin: 0; padding: 14px 16px; border-radius: 12px 12px 0 0; display: flex; align-items: center; gap: 10px;">
+          <button onclick="fecharSubmenuDisplay()" class="perfil-voltar">←</button>
           <h3 style="margin: 0; font-size: 15px;">App e display</h3>
         </div>
         <div style="padding: 16px;">
-          <div class="item-display-toggle" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
+          <div class="item-display-toggle">
             <div>
-              <strong style="font-size: 13px; display: block; color: #0f172a;">Modo Escuro</strong>
-              <small style="font-size: 11px; color: #64748b;">Alternar para tema noturno de alto contraste</small>
+              <strong style="font-size: 13px; display: block;">Modo Escuro</strong>
+              <small style="font-size: 11px;">Alternar para tema noturno de alto contraste</small>
             </div>
             <label class="switch">
               <input type="checkbox" id="switchModoEscuro" onchange="alternarModoEscuro(this.checked)">
@@ -322,15 +374,15 @@
 
       <!-- SUBMENU: NOTIFICAÇÕES -->
       <div id="submenuNotificacoes" style="display: none;">
-        <div style="background: #0A2540; color: white; padding: 14px 16px; display: flex; align-items: center; gap: 10px;">
-          <button onclick="fecharSubmenuNotificacoes()" style="background: transparent; border: none; color: white; font-size: 18px; cursor: pointer;">←</button>
+        <div class="cabecalho-modal-radar" style="margin: 0; padding: 14px 16px; border-radius: 12px 12px 0 0; display: flex; align-items: center; gap: 10px;">
+          <button onclick="fecharSubmenuNotificacoes()" class="perfil-voltar">←</button>
           <h3 style="margin: 0; font-size: 15px;">Notificações</h3>
         </div>
         <div style="padding: 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
+          <div class="item-display-toggle">
             <div>
-              <strong style="font-size: 13px; display: block; color: #0f172a;">Alertas no Sonar</strong>
-              <small style="font-size: 11px; color: #64748b;">Receber avisos quando houver novos incidentes próximos</small>
+              <strong style="font-size: 13px; display: block;">Alertas no Sonar</strong>
+              <small style="font-size: 11px;">Receber avisos quando houver novos incidentes próximos</small>
             </div>
             <label class="switch">
               <input type="checkbox" id="switchPushNotificacao" checked onchange="alternarPreferenciaPush()">
@@ -340,6 +392,69 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- MODAL: SEGURANÇA E VERIFICAÇÃO -->
+  <div id="modalSeguranca" class="modal-login">
+    <div class="modal-conteudo modal-radar-quadrado" style="max-width: 440px;">
+      <div class="cabecalho-modal-radar">
+        <h3>🛡️ Segurança e Autenticação</h3>
+        <button class="perfil-fechar" onclick="fecharModalSeguranca()">×</button>
+      </div>
+
+      <div style="padding: 10px 0;">
+        <div id="cardStatusVerificacaoConta" class="card-status-verificacao-box">
+          <div id="iconeStatusGeralVerificacao" class="icone-status-verif">⚪</div>
+          <div style="flex:1;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <h4 id="tituloStatusGeralVerificacao">Conta Não Verificada</h4>
+              <strong id="porcentagemProgressoTexto" style="font-size:12px; color:#E5B842;">0%</strong>
+            </div>
+            
+            <div class="barra-progresso-container">
+              <div id="barraProgressoPreenchimento" class="barra-progresso-preenchimento" style="width: 0%;"></div>
+            </div>
+
+            <p id="descStatusGeralVerificacao">Complete o e-mail, telemóvel e um CPF único e válido para obter o selo de autenticidade.</p>
+          </div>
+        </div>
+
+        <form autocomplete="off" onsubmit="event.preventDefault(); guardarDadosSeguranca();" style="display:flex; flex-direction:column; gap:12px; margin-top:14px;">
+          
+          <div class="campo-grupo-edit">
+            <label for="inputSegurancaTelefone">📱 Telemóvel de Recuperação</label>
+            <input type="text" id="inputSegurancaTelefone" autocomplete="off" placeholder="(92) 99999-9999" maxlength="15" oninput="formatarTelefone(this)">
+          </div>
+
+          <div class="campo-grupo-edit">
+            <label for="inputSegurancaCPF">🪪 CPF do Titular (Validação de Segurança)</label>
+            <input type="text" id="inputSegurancaCPF" autocomplete="off" placeholder="000.000.000-00" maxlength="14" oninput="formatarCPF(this)">
+            <small id="dicaValidadeCPF" class="dica-campo">O CPF é único por conta e passa por validação matemática de dígitos.</small>
+          </div>
+
+          <div class="secao-box-opcao">
+            <div>
+              <strong style="font-size:12px; display:block;">Verificação de E-mail</strong>
+              <small id="txtEmailVerificadoStatus" style="font-size:10.5px;">E-mail pendente de confirmação</small>
+            </div>
+            <button type="button" class="btn-cancelar-edit" onclick="enviarEmailVerificacaoFirebase()" style="font-size:11px; padding:6px 10px;">Verificar</button>
+          </div>
+
+          <div class="secao-box-opcao">
+            <div>
+              <strong style="font-size:12px; display:block;">Alterar Senha de Acesso</strong>
+              <small style="font-size:10.5px;">Receba um link de redefinição no e-mail</small>
+            </div>
+            <button type="button" class="btn-cancelar-edit" onclick="solicitarRedefinicaoSenha()" style="font-size:11px; padding:6px 10px;">Redefinir</button>
+          </div>
+
+          <div class="botoes-acoes-edit" style="margin-top:10px;">
+            <button type="button" class="btn-cancelar-edit" onclick="fecharModalSeguranca()">Cancelar</button>
+            <button type="submit" class="btn-salvar-edit">Guardar Alterações</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 

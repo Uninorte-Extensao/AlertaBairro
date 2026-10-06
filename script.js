@@ -892,7 +892,13 @@ async function salvarAlertaMapa(){
   db.collection("alertas").add(novo).then(() => {
     if (ultimoPopup) mapa.closePopup(ultimoPopup);
     else mapa.closePopup();
-    showToast('Alerta publicado com sucesso!', 'success');
+    showToast(
+      triagem.triagemOffline
+        ? 'Alerta publicado com severidade provisória: a IA está indisponível.'
+        : 'Alerta publicado com sucesso!',
+      'success',
+      4000
+    );
   });
 }
 
@@ -953,11 +959,48 @@ function abrirFoto(url) {
 // 8. INTEGRAÇÃO COM GEMINI IA
 // ===================================================
 function obterUrlGemini(modelo) {
-  const chave = window.ALERTA_BAIRRO_GEMINI_API_KEY?.trim();
-  if (!chave || chave === 'COLE_SUA_CHAVE_DO_AI_STUDIO_AQUI') {
+  const chaveConfigurada = window.ALERTA_BAIRRO_GEMINI_API_KEY;
+  const chave = typeof chaveConfigurada === 'string' ? chaveConfigurada.trim() : '';
+  if (!chave || chave.startsWith('COLE_SUA_CHAVE_')) {
     throw new Error('GEMINI_API_KEY_AUSENTE: configure a chave local do Gemini.');
   }
   return `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${encodeURIComponent(chave)}`;
+}
+
+function triagemLocalDeContingencia(tipo, descricao) {
+  const texto = String(descricao || '').trim();
+  const normalizado = texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const padroesDeTrote = [
+    /\bteste (?:da|de) ia\b/,
+    /\bteste (?:do )?gemini\b/,
+    /\b(?:so estou brincando|era brincadeira|e uma piada)\b/,
+    /\b(?:perdi|sumiu|desapareceu|roubaram)\b.{0,30}\bbebe reborn\b|\bbebe reborn\b.{0,30}\b(?:sumiu|desapareceu|foi roubado)\b/,
+    /\bmeu boneco (?:sumiu|desapareceu)\b/,
+    /\broubaram meu coracao\b/
+  ];
+
+  if (texto.length < 12 || padroesDeTrote.some(padrao => padrao.test(normalizado))) {
+    return {
+      valido: false,
+      severidade_corrigida: 'BAIXA',
+      motivo: 'Relato curto ou com sinais claros de brincadeira; não foi possível validar com a IA.'
+    };
+  }
+
+  const tipoNormalizado = String(tipo || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const severidadePorTipo = [
+    { corresponde: /roubo|assalto/, severidade: 'ALTA' },
+    { corresponde: /incendio|alagamento|desaparecimento|acidente/, severidade: 'ALTA' },
+    { corresponde: /falta de luz|energia|obra|manutencao/, severidade: 'MEDIA' }
+  ];
+  const severidade = severidadePorTipo.find(regra => regra.corresponde.test(tipoNormalizado))?.severidade || 'MEDIA';
+
+  return {
+    valido: true,
+    severidade_corrigida: severidade,
+    motivo: 'Triagem da IA temporariamente indisponível; relato aceito com severidade provisória conservadora.',
+    triagemOffline: true
+  };
 }
 
 async function analisarAlertaComIA(tipo, descricao, urgenciaUsuario = 'NAO INFORMADA') {
@@ -983,18 +1026,34 @@ async function analisarAlertaComIA(tipo, descricao, urgenciaUsuario = 'NAO INFOR
     }`;
 
     try {
-    const url = obterUrlGemini('gemini-1.5-flash');
-        const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }]
-            })
-        });
+    const url = obterUrlGemini('gemini-3.8-flash');
+        let response;
+        for (let tentativa = 0; tentativa < 2; tentativa++) {
+          try {
+            response = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+          } catch (erroRede) {
+            if (tentativa === 0) {
+              await new Promise(resolve => setTimeout(resolve, 700));
+              continue;
+            }
+            throw erroRede;
+          }
 
-        if (!response.ok) throw new Error(`Gemini HTTP ${response.status}`);
+          if (response.ok) break;
+          if (tentativa === 0 && [429, 503].includes(response.status)) {
+            await new Promise(resolve => setTimeout(resolve, 700));
+            continue;
+          }
+          throw new Error(`Gemini HTTP ${response.status}`);
+        }
+
         const data = await response.json();
-        const textoResposta = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        const textoResposta = data.candidates?.[0]?.content?.parts?.[0]?.text
+          ?.replace(/```json|```/g, '').trim();
         if (!textoResposta) throw new Error('Resposta vazia');
         if (textoResposta.toUpperCase() === 'BLOQUEADO') {
           return {
@@ -1015,7 +1074,13 @@ async function analisarAlertaComIA(tipo, descricao, urgenciaUsuario = 'NAO INFOR
         return resultado;
 
     } catch (err) {
-        console.error('Erro na IA; triagem bloqueada:', err);
+        console.error('Falha na triagem Gemini:', err);
+        if (err.message?.includes('Gemini HTTP 503')
+          || err.message?.includes('Gemini HTTP 429')
+          || err.name === 'TypeError') {
+          return triagemLocalDeContingencia(tipo, descricao);
+        }
+
         const motivo = err.message?.includes('GEMINI_API_KEY_AUSENTE')
           ? 'Configure uma chave válida do Gemini para analisar este alerta.'
           : err.message?.includes('401')
@@ -1141,6 +1206,11 @@ async function processarAudioComGemini(base64Audio, mimeType) {
 
 async function cadastrarAlertaGeradoPorIA(dados) {
   const triagem = await analisarAlertaComIA(dados.tipo, dados.descricao);
+  if (!triagem.valido) {
+    showToast(`Alerta bloqueado pela triagem: ${triagem.motivo}`, 'error', 5000);
+    fecharModalVozIA();
+    return;
+  }
 
   let ehVerificado = false;
   let fotoAutor = auth.currentUser.photoURL || null;
@@ -1174,7 +1244,13 @@ async function cadastrarAlertaGeradoPorIA(dados) {
 
   db.collection("alertas").add(novoAlerta).then(() => {
     fecharModalVozIA();
-    showToast(`🚨 Alerta em ${novoAlerta.bairro} publicado!`, 'success');
+    showToast(
+      triagem.triagemOffline
+        ? `Alerta em ${novoAlerta.bairro} publicado com severidade provisória: a IA está indisponível.`
+        : `🚨 Alerta em ${novoAlerta.bairro} publicado!`,
+      'success',
+      4000
+    );
     mapa.flyTo([dados.lat, dados.lng], 16, { animate: true });
   });
 }
@@ -1704,7 +1780,6 @@ function renderizarAlertasRadarArea() {
   }
 
   const fallbackFoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
-
   container.innerHTML = ocorrenciasPerimetro.map(alerta => {
     const ehAnonimo = alerta.anonimo === true;
     const autorNome = ehAnonimo ? 'Utilizador Anónimo' : (alerta.autorPublico || 'Utilizador da Comunidade');

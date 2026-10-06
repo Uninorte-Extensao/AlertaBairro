@@ -952,11 +952,15 @@ function abrirFoto(url) {
 // ===================================================
 // 8. INTEGRAÇÃO COM GEMINI IA
 // ===================================================
-const GEMINI_API_KEY = "Chave_Aleatoria";
+function obterUrlGemini(modelo) {
+  const chave = window.ALERTA_BAIRRO_GEMINI_API_KEY?.trim();
+  if (!chave || chave === 'COLE_SUA_CHAVE_DO_AI_STUDIO_AQUI') {
+    throw new Error('GEMINI_API_KEY_AUSENTE: configure a chave local do Gemini.');
+  }
+  return `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${encodeURIComponent(chave)}`;
+}
 
 async function analisarAlertaComIA(tipo, descricao, urgenciaUsuario = 'NAO INFORMADA') {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-
     const prompt = `
     Você é um assistente de triagem do app Alerta Bairro em Manaus.
     Analise a ocorrência:
@@ -967,9 +971,11 @@ async function analisarAlertaComIA(tipo, descricao, urgenciaUsuario = 'NAO INFOR
     REGRAS DE BLOQUEIO (OBRIGATÓRIAS):
     1. Se o texto for apenas gírias, saudações, palavras soltas ou sem sentido, retorne "valido": false.
     2. Se o texto não explicar O QUE aconteceu de verdade, retorne "valido": false.
-    3. Apenas se for um RELATO REAL E CLARO de segurança/infraestrutura, retorne "valido": true.
+    3. Se houver brincadeira, situação impossível, meme ou objeto inanimado tratado como pessoa, responda exatamente BLOQUEADO.
+    4. Compare a urgência alegada com os fatos; não assuma que a classificação do usuário está correta.
+    5. Apenas se for um relato real e claro de segurança/infraestrutura, retorne "valido": true.
 
-    Retorne apenas JSON:
+    Para relatos válidos ou inválidos que não acionem a regra BLOQUEADO, retorne apenas JSON:
     {
       "valido": true,
       "severidade_corrigida": "MEDIA",
@@ -977,36 +983,45 @@ async function analisarAlertaComIA(tipo, descricao, urgenciaUsuario = 'NAO INFOR
     }`;
 
     try {
+    const url = obterUrlGemini('gemini-1.5-flash');
         const response = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { responseMimeType: "application/json" }
+              contents: [{ parts: [{ text: prompt }] }]
             })
         });
 
         if (!response.ok) throw new Error(`Gemini HTTP ${response.status}`);
         const data = await response.json();
-        const textoResposta = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const textoResposta = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
         if (!textoResposta) throw new Error('Resposta vazia');
+        if (textoResposta.toUpperCase() === 'BLOQUEADO') {
+          return {
+            valido: false,
+            severidade_corrigida: 'MEDIA',
+            motivo: 'A descrição foi identificada como brincadeira, situação impossível ou fora do escopo.'
+          };
+        }
 
         const resultado = JSON.parse(textoResposta);
+        const severidadesValidas = ['CRITICA', 'ALTA', 'MEDIA', 'BAIXA'];
+        if (typeof resultado.valido !== 'boolean'
+          || !severidadesValidas.includes(resultado.severidade_corrigida)
+          || typeof resultado.motivo !== 'string') {
+          throw new Error('Resposta da IA fora do formato esperado');
+        }
 
-        return {
-            valido: typeof resultado.valido === 'boolean' ? resultado.valido : true,
-            severidade_corrigida: ['CRITICA', 'ALTA', 'MEDIA', 'BAIXA'].includes(resultado.severidade_corrigida) 
-                ? resultado.severidade_corrigida 
-                : (urgenciaUsuario !== 'NAO INFORMADA' ? urgenciaUsuario : 'MEDIA'),
-            motivo: resultado.motivo || "Triagem concluída."
-        };
+        return resultado;
 
     } catch (err) {
-        return { 
-            valido: true, 
-            severidade_corrigida: urgenciaUsuario !== 'NAO INFORMADA' ? urgenciaUsuario : 'MEDIA', 
-            motivo: "Alerta aprovado automaticamente." 
-        };
+        console.error('Erro na IA; triagem bloqueada:', err);
+        const motivo = err.message?.includes('GEMINI_API_KEY_AUSENTE')
+          ? 'Configure uma chave válida do Gemini para analisar este alerta.'
+          : err.message?.includes('401')
+            ? 'A chave do Gemini foi rejeitada. Confira a configuração e tente novamente.'
+            : 'Não foi possível validar o alerta. Tente novamente mais tarde.';
+        return { valido: false, severidade_corrigida: 'MEDIA', motivo };
     }
 }
 
@@ -1075,7 +1090,7 @@ async function processarAudioComGemini(base64Audio, mimeType) {
   try {
     if (textoLive) textoLive.innerText = "🧠 Identificando tipo de ocorrência e localização...";
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const url = obterUrlGemini('gemini-3.6-flash');
 
     const response = await fetch(url, {
       method: 'POST',

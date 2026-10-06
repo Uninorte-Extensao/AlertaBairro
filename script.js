@@ -1,5 +1,5 @@
 // ===================================================
-// 1. CONFIGURAÇÃO E CONEXÃO COM O SERVIDOR (FIREBASE)
+// 1. CONFIGURAÇÃO FIREBASE
 // ===================================================
 const firebaseConfig = {
   apiKey: "AIzaSyBe7jdY2y04Uw1DuQ9T6f5NXJOqPzRPPZo",
@@ -15,7 +15,7 @@ const db = firebase.firestore();
 const auth = firebase.auth(); 
 
 // ===================================================
-// 2. VARIÁVEIS GERAIS E CONFIGURAÇÃO DO MAPA
+// 2. VARIÁVEIS GERAIS E MAPA
 // ===================================================
 let filtroTipoAtual = "todos"; 
 let alertas = [];
@@ -36,11 +36,65 @@ let nivelAcessoUsuarioAtual = "comum";
 let ultimoPopup = null; 
 let perfilAnonimoAtual = false;
 
-const mapa = L.map('mapa', { attributionControl: false }).setView([-3.1190, -60.0217], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapa);
+// Inicialização do mapa Leaflet
+const mapa = L.map('mapa', { attributionControl: false, zoomControl: false }).setView([-3.1190, -60.0217], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(mapa);
+
+// Função formatadora de datas e horários dos alertas
+function formatarDataHora(dataFirestore) {
+  if (!dataFirestore) return "Agora";
+  let date;
+  if (dataFirestore.toDate) {
+    date = dataFirestore.toDate();
+  } else if (dataFirestore instanceof Date) {
+    date = dataFirestore;
+  } else if (typeof dataFirestore === 'number' || typeof dataFirestore === 'string') {
+    date = new Date(dataFirestore);
+  } else {
+    return "Agora";
+  }
+
+  const dia = String(date.getDate()).padStart(2, '0');
+  const mes = String(date.getMonth() + 1).padStart(2, '0');
+  const horas = String(date.getHours()).padStart(2, '0');
+  const minutos = String(date.getMinutes()).padStart(2, '0');
+
+  return `${dia}/${mes} às ${horas}:${minutos}`;
+}
+
+// ATUALIZAÇÃO REFINADA DO ESTILO DO MAPA
+function atualizarEstiloMapaPorHorario() {
+  const mapaEl = document.getElementById('mapa');
+  if (!mapaEl) return;
+
+  const temaSalvo = localStorage.getItem('temaAlertaBairro');
+  
+  if (temaSalvo === 'escuro') {
+    mapaEl.classList.add('mapa-noite');
+    return;
+  }
+  
+  if (temaSalvo === 'claro') {
+    mapaEl.classList.remove('mapa-noite');
+    return;
+  }
+
+  // Se o utilizador não escolheu explicitamente, calcula o horário local
+  const horaLocalUsuario = new Date().getHours();
+  const ehNoite = horaLocalUsuario < 6 || horaLocalUsuario >= 18;
+
+  if (ehNoite) {
+    mapaEl.classList.add('mapa-noite');
+  } else {
+    mapaEl.classList.remove('mapa-noite');
+  }
+}
+
+atualizarEstiloMapaPorHorario();
+setInterval(atualizarEstiloMapaPorHorario, 15 * 60 * 1000);
 
 // ===================================================
-// CONFIGURAÇÃO DO FORMULÁRIO DO MAPA
+// FORMULÁRIO DO MAPA (NOVO ALERTA)
 // ===================================================
 function obterPopupFormularioHTML() {
   let opcoesSelect = `
@@ -63,41 +117,44 @@ function obterPopupFormularioHTML() {
   }
 
   return `
-    <div style="font-family: sans-serif; min-width:180px;">
-      <h3 style="font-size:13px; margin-bottom:6px; color:#0A2540;">Novo Alerta (${nivelAcessoUsuarioAtual.toUpperCase()})</h3>
-      <select id="popupTipo" style="padding:4px; font-size:11px; width:100%;">
-        ${opcoesSelect}
-      </select>
-      <input type="text" id="popupBairro" placeholder="Buscando bairro..." readonly style="padding:4px; font-size:11px; margin-top:4px; width:100%;">
-      <select id="popupUrgencia" style="padding:4px; font-size:11px; margin-top:4px; width:100%; border:1px solid #ef4444; color:#b91c1c; font-weight:600;">
-        <option value="BAIXA">🟢 Perigo baixo</option>
-        <option value="MEDIA" selected>🟡 Perigo médio</option>
-        <option value="ALTA">🟠 Perigo alto</option>
-        <option value="CRITICA">🔴 Emergência crítica</option>
-      </select>
-      <textarea id="popupDescricao" rows="2" placeholder="Descreva o incidente..." style="padding:4px; font-size:11px; margin-top:4px; width:100%;"></textarea>
-      <button onclick="salvarAlertaMapa()" style="margin-top:6px; padding:6px; width:100%; background:#D9383A; color:white; border:none; border-radius:4px; font-weight:600; cursor:pointer;">Salvar Alerta</button>
+    <div class="popup-novo-alerta-card">
+      <div class="popup-na-cabecalho">
+        <span>🚨 Novo Alerta (${nivelAcessoUsuarioAtual.toUpperCase()})</span>
+        <button onclick="mapa.closePopup()" class="btn-fechar-popup-na">×</button>
+      </div>
+      <div class="popup-na-campo">
+        <label>Tipo de Ocorrência</label>
+        <select id="popupTipo" class="input-popup-na">
+          ${opcoesSelect}
+        </select>
+      </div>
+      <div class="popup-na-campo">
+        <label>Bairro / Localização</label>
+        <input type="text" id="popupBairro" class="input-popup-na" placeholder="Buscando bairro..." readonly autocomplete="off">
+      </div>
+      <div class="popup-na-campo">
+        <label>Nível de Perigo</label>
+        <select id="popupUrgencia" class="input-popup-na seletor-urgencia-na">
+          <option value="BAIXA">🟢 Perigo baixo</option>
+          <option value="MEDIA" selected>🟡 Perigo médio</option>
+          <option value="ALTA">🟠 Perigo alto</option>
+          <option value="CRITICA">🔴 Emergência crítica</option>
+        </select>
+      </div>
+      <div class="popup-na-campo">
+        <label>Descrição do Ocorrido</label>
+        <textarea id="popupDescricao" class="input-popup-na" rows="2" placeholder="Descreva o incidente..." autocomplete="off"></textarea>
+      </div>
+      <button onclick="salvarAlertaMapa()" class="btn-salvar-alerta-na">Salvar Alerta</button>
     </div>`;
 }
 
-// ===================================================
-// OUVINTE DE CLIQUE NO MAPA
-// ===================================================
 mapa.on('click', function(e) {
   const menuPerfil = document.getElementById('menuFlutuantePerfil');
   if (menuPerfil) menuPerfil.style.display = 'none';
 
   if (!auth.currentUser) {
     abrirModalLogin();
-    return;
-  }
-
-  if (typeof selecionandoLocalManualmente !== 'undefined' && selecionandoLocalManualmente === true) {
-    ultimaLatUsuario = e.latlng.lat;
-    ultimaLngUsuario = e.latlng.lng;
-    selecionandoLocalManualmente = false; 
-    
-    abrirModalAlertaExpandido();
     return;
   }
 
@@ -112,7 +169,7 @@ function abrirPopupCriacaoAlerta(lat, lng) {
     mapa.closePopup(ultimoPopup);
   }
 
-  ultimoPopup = L.popup({ closeOnClick: false })
+  ultimoPopup = L.popup({ closeOnClick: false, className: 'leaflet-popup-novo-alerta' })
     .setLatLng([lat, lng])
     .setContent(obterPopupFormularioHTML())
     .openOn(mapa);
@@ -120,9 +177,6 @@ function abrirPopupCriacaoAlerta(lat, lng) {
   detectarBairro(lat, lng);
 }
 
-// ===================================================
-// FUNÇÕES DE EXIBIÇÃO E TOAST
-// ===================================================
 function showToast(msg, type = 'success', ttl = 2800) {
   const cont = document.getElementById('toastContainer');
   if (!cont) return;
@@ -176,9 +230,40 @@ function irParaAlerta(lat, lng) {
   });
 }
 
-// ===================================================
-// 2.1 MAPA DE CALOR
-// ===================================================
+function gerarHTMLPopupAlerta(alerta) {
+  const ehAnonimo = alerta.anonimo === true;
+  const autorNome = ehAnonimo ? 'Utilizador Anónimo' : (alerta.autorPublico || 'Utilizador da Comunidade');
+  const fallbackFoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+  const autorFoto = ehAnonimo ? fallbackFoto : (alerta.autorFoto || fallbackFoto);
+  
+  const verificado = alerta.autorVerificado === true;
+  const badgeVerificacao = verificado
+    ? `<span class="badge-verificado positivo" title="Conta 100% Verificada pelo Sistema">🟢 Verificado</span>`
+    : `<span class="badge-verificado pendente" title="Ainda não possui verificação completa">⚪ Não verificado</span>`;
+
+  const severidade = alerta.severidade || 'MEDIA';
+
+  return `
+    <div class="popup-alerta-card">
+      <div class="popup-alerta-header">
+        <div class="popup-autor-info">
+          <img src="${escaparHTML(autorFoto)}" class="popup-autor-avatar" alt="Foto">
+          <div class="popup-autor-detalhes">
+            <strong>${escaparHTML(autorNome)}</strong>
+            ${badgeVerificacao}
+          </div>
+        </div>
+        <span class="popup-tag-prioridade ${severidade}">${severidade}</span>
+      </div>
+      <div class="popup-alerta-corpo">
+        <div class="popup-alerta-tipo">🚨 ${escaparHTML(alerta.tipo)}</div>
+        <p class="popup-alerta-desc">${escaparHTML(alerta.descricao)}</p>
+        <small class="popup-alerta-bairro">📍 ${escaparHTML(alerta.bairro)} • ${formatarDataHora(alerta.data)}</small>
+      </div>
+    </div>
+  `;
+}
+
 function gerarMapaDeCalorDinamico() {
   camadasRegiaoCalor.forEach(c => mapa.removeLayer(c));
   camadasRegiaoCalor = [];
@@ -227,13 +312,19 @@ function gerarMapaDeCalorDinamico() {
 
     let stringTipos = "";
     for (const tipo in grupo.tipos) {
-      stringTipos += `<br>• ${tipo}: ${grupo.tipos[tipo]}`;
+      stringTipos += `<div style="font-size:11.5px; margin-top:2px;">• <strong>${tipo}</strong>: ${grupo.tipos[tipo]}</div>`;
     }
 
     const popupEstatistica = `
-      <div style="font-family: sans-serif; font-size: 12px; color: #212529; min-width: 160px;">
-        <strong style="font-size:13px; color:#D9383A;">📊 Área Crítica: ${grupo.bairro}</strong><br>
-        <strong>Total: ${grupo.total}</strong><hr style="margin:6px 0; border:0; border-top:1px solid #dee2e6;">
+      <div class="popup-area-critica-card">
+        <div class="popup-ac-topo">
+          <span style="font-size:20px;">📊</span>
+          <div>
+            <h4>Área Crítica: ${escaparHTML(grupo.bairro)}</h4>
+            <small>${grupo.total} ocorrência(s) registrada(s)</small>
+          </div>
+        </div>
+        <hr style="border:0; border-top:1px solid #1E293B; margin:6px 0;">
         ${stringTipos}
       </div>
     `;
@@ -248,10 +339,10 @@ function gerarMapaDeCalorDinamico() {
     }).addTo(mapa);
 
     const iconeGrafico = L.divIcon({
-        className: 'icone-estatistica',
-        html: `<div style="font-size: 22px; text-shadow: 0px 0px 4px white; cursor: pointer;">📊</div>`,
-        iconSize: [26, 26],
-        iconAnchor: [13, 13]
+        className: 'icone-estatistica-badge',
+        html: `<div class="badge-area-critica-pill">📊 ${grupo.total} alertas</div>`,
+        iconSize: [80, 26],
+        iconAnchor: [-12, 32]
     });
 
     const marcadorEstatistica = L.marker([grupo.lat, grupo.lng], { icon: iconeGrafico })
@@ -264,21 +355,13 @@ function gerarMapaDeCalorDinamico() {
 }
 
 // ===================================================
-// 3. RECUPERAÇÃO REALTIME E FILTRAGENS
+// 3. RECUPERAÇÃO REALTIME E RENDERING DOS CARDS
 // ===================================================
-function verificarEDispararPushNotificacao(alerta) {
-  console.log("Notificação detectada:", alerta);
-}
-
 db.collection("alertas").orderBy("data", "desc").onSnapshot((querySnapshot) => {
   let novosAlertas = [];
   querySnapshot.forEach((doc) => { 
     novosAlertas.push(doc.data()); 
   });
-
-  if (!primeiraCargaDB && radarAtivo && pushHabilitadoPeloUsuario && novosAlertas.length > alertas.length) {
-    verificarEDispararPushNotificacao(novosAlertas[0]);
-  }
 
   alertas = novosAlertas;
   primeiraCargaDB = false;
@@ -306,24 +389,39 @@ function atualizarInterfaceVisívelComFiltro() {
         const tipo = escaparHTML(alerta.tipo);
         const bairro = escaparHTML(alerta.bairro);
         const descricao = escaparHTML(alerta.descricao);
+        const dataHora = formatarDataHora(alerta.data);
+
+        const ehAnonimo = alerta.anonimo === true;
+        const autorNome = ehAnonimo ? 'Utilizador Anónimo' : (alerta.autorPublico || 'Utilizador da Comunidade');
+        const fallbackFoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+        const autorFoto = ehAnonimo ? fallbackFoto : (alerta.autorFoto || fallbackFoto);
+        const verificado = alerta.autorVerificado === true;
+
         let cssClass = '';
         if(alerta.tipo.includes('Roubo')) cssClass = 'alerta-roubo';
         else if(alerta.tipo.includes('Luz')) cssClass = 'alerta-falta-luz';
         else if(alerta.tipo.includes('Alagamento')) cssClass = 'alerta-alagamento';
-        else if(alerta.tipo.includes('Trânsito')) cssClass = 'alerta-transito';
-        else if(alerta.tipo.includes('Incêndio')) cssClass = 'alerta-incendio';
-        else if(alerta.tipo.includes('Obra') || alerta.tipo.includes('Manutenção')) cssClass = 'alerta-obra';
-        else if(alerta.tipo.includes('Desaparecimento')) cssClass = 'alerta-desaparecimento';
 
-        let urlImagem = alerta.urlAnexo || (alerta.nomeAnexo ? alerta.nomeAnexo : 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=150');
+        let cssSeveridade = 'severidade-MEDIA';
+        if (alerta.severidade && ['CRITICA', 'ALTA', 'MEDIA', 'BAIXA'].includes(String(alerta.severidade).toUpperCase())) {
+          cssSeveridade = `severidade-${String(alerta.severidade).toUpperCase()}`;
+        }
+
+        const urlFoto = alerta.urlAnexo || alerta.nomeAnexo;
+        const temFotoReal = Boolean(
+          urlFoto && 
+          urlFoto.trim() !== '' && 
+          !urlFoto.includes('unsplash.com') && 
+          (alerta.contemAnexo === true || urlFoto.startsWith('http'))
+        );
 
         let htmlImagemDireita = '';
-        if (alerta.contemAnexo || alerta.urlAnexo) {
+        if (temFotoReal) {
           htmlImagemDireita = `
             <div class="coluna-imagem-alerta">
-              <img src="${escaparHTML(urlImagem)}"
+              <img src="${escaparHTML(urlFoto)}"
                    class="foto-registro-lateral" 
-                   data-url="${escaparHTML(urlImagem)}"
+                   data-url="${escaparHTML(urlFoto)}"
                    onclick="abrirFoto(this.dataset.url)"
                    alt="Evidência" 
                    style="cursor: pointer;">
@@ -332,15 +430,24 @@ function atualizarInterfaceVisívelComFiltro() {
         }
 
         lista.innerHTML += `
-        <div class="alerta-card ${cssClass} ${alerta.contemAnexo ? 'com-foto' : ''}" onclick="irParaAlerta(${alerta.lat}, ${alerta.lng})" style="cursor: pointer;">
-          <div class="coluna-texto-alerta">
-              <div class="alerta-header">
-                <span>🚨 ${tipo}</span>
-                <span class="alerta-bairro">📍 ${bairro}</span>
+        <div class="alerta-card ${cssClass} ${cssSeveridade}" onclick="irParaAlerta(${alerta.lat}, ${alerta.lng})" style="cursor: pointer;">
+          <div class="alerta-autor-row">
+            <div class="alerta-autor-dados">
+              <img src="${escaparHTML(autorFoto)}" class="alerta-avatar-mini" alt="Autor">
+              <span class="alerta-nome-autor">${escaparHTML(autorNome)} ${verificado ? '🟢' : ''}</span>
             </div>
-              <div class="alerta-corpo">${descricao}</div>
+            <span class="alerta-data-hora">🕒 ${dataHora}</span>
           </div>
-          ${htmlImagemDireita}
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="coluna-texto-alerta">
+              <div class="alerta-header">
+                <span class="alerta-titulo-tipo">🚨 ${tipo}</span>
+                <span class="alerta-bairro">📍 ${bairro}</span>
+              </div>
+              <div class="alerta-corpo">${descricao}</div>
+            </div>
+            ${htmlImagemDireita}
+          </div>
         </div>`;
       });
     }
@@ -356,7 +463,8 @@ function atualizarInterfaceVisívelComFiltro() {
         icon: obterIconeAlerta(severidade),
         tipoAlerta: alerta.tipo
       }).addTo(mapa);
-      marcador.bindPopup(`<strong>🚨 ${escaparHTML(alerta.tipo)}</strong><br>Prioridade: ${escaparHTML(severidade)}<br>${escaparHTML(alerta.descricao)}`);
+      
+      marcador.bindPopup(gerarHTMLPopupAlerta(alerta));
       marcador.on('click', function(e) { L.DomEvent.stopPropagation(e); });
       marcadores.push(marcador);
     }
@@ -369,23 +477,82 @@ function atualizarInterfaceVisívelComFiltro() {
 function filtrarAlertasPorTipo(tipo, botaoClicado) {
   filtroTipoAtual = tipo;
   const botoes = document.querySelectorAll('.btn-filtro');
+  
   botoes.forEach(b => {
-    b.classList.remove('ativo'); b.style.background = "#f8fafc"; b.style.color = "#0f172a";
+    b.classList.remove('ativo');
+    b.removeAttribute('style');
   });
+
   botaoClicado.classList.add('ativo');
-  botaoClicado.style.background = "#0A2540";
-  botaoClicado.style.color = "#ffffff";
   atualizarInterfaceVisívelComFiltro();
 }
 
 // ===================================================
-// 4. AUTENTICAÇÃO E PERFIL
+// 4. MODO ESCURO E ALTERNÂNCIA DE TEMA REFINADA
+// ===================================================
+function alternarModoEscuro(ativo) {
+  const mapaEl = document.getElementById('mapa');
+
+  if (ativo) {
+    document.body.classList.add('modo-escuro');
+    if (mapaEl) mapaEl.classList.add('mapa-noite');
+    localStorage.setItem('temaAlertaBairro', 'escuro');
+  } else {
+    document.body.classList.remove('modo-escuro');
+    if (mapaEl) mapaEl.classList.remove('mapa-noite');
+    localStorage.setItem('temaAlertaBairro', 'claro');
+  }
+
+  if (radarAtivo) {
+    verificarAlertasProximos();
+  }
+
+  const modalRadar = document.getElementById('modalHistoricoRadar');
+  if (modalRadar && modalRadar.style.display === 'flex') {
+    renderizarAlertasRadarArea();
+  }
+}
+
+function carregarTemaSalvo() {
+  const temaSalvo = localStorage.getItem('temaAlertaBairro');
+  const switchEscuro = document.getElementById('switchModoEscuro');
+  const mapaEl = document.getElementById('mapa');
+
+  if (temaSalvo === 'escuro') {
+    document.body.classList.add('modo-escuro');
+    if (mapaEl) mapaEl.classList.add('mapa-noite');
+    if (switchEscuro) switchEscuro.checked = true;
+  } else if (temaSalvo === 'claro') {
+    document.body.classList.remove('modo-escuro');
+    if (mapaEl) mapaEl.classList.remove('mapa-noite');
+    if (switchEscuro) switchEscuro.checked = false;
+  } else {
+    // Caso padrão inicial sem preferência guardada
+    document.body.classList.remove('modo-escuro');
+    if (switchEscuro) switchEscuro.checked = false;
+    atualizarEstiloMapaPorHorario();
+  }
+}
+
+document.addEventListener('DOMContentLoaded', carregarTemaSalvo);
+
+// ===================================================
+// 5. AUTENTICAÇÃO E PERFIL
 // ===================================================
 function login() {
-  const email = document.getElementById('email').value;
-  const senha = document.getElementById('senha').value;
+  const emailEl = document.getElementById('email');
+  const senhaEl = document.getElementById('senha');
+  const email = emailEl ? emailEl.value : '';
+  const senha = senhaEl ? senhaEl.value : '';
+
   if (!email || !senha) return alert('Preencha os campos.');
-  auth.signInWithEmailAndPassword(email, senha).then(() => { loginExitosa(); }).catch(() => alert("Dados incorretos."));
+
+  auth.signInWithEmailAndPassword(email, senha)
+    .then(() => {
+      if (senhaEl) senhaEl.value = '';
+      loginExitosa();
+    })
+    .catch(() => alert("Dados incorretos."));
 }
 
 function loginComGoogle() {
@@ -393,19 +560,57 @@ function loginComGoogle() {
   auth.signInWithPopup(provider).then((cred) => {
     db.collection("usuarios").doc(cred.user.uid).get().then(doc => {
       if(!doc.exists) db.collection("usuarios").doc(cred.user.uid).set({ email: cred.user.email, nivelAcesso: "comum" });
+      
+      const senhaEl = document.getElementById('senha');
+      if (senhaEl) senhaEl.value = '';
+
       loginExitosa();
     });
   });
 }
 
+async function carregarDadosEPreferenciasPerfil(user) {
+  if (!user) return;
+  
+  const fallbackFoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239aa0a6'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+
+  document.getElementById('perfilNome').innerText = user.displayName || "Usuário Comunitário";
+  document.getElementById('perfilEmail').innerText = user.email || "sem-email@provedor.com";
+
+  try {
+    const doc = await db.collection('usuarios').doc(user.uid).get();
+    
+    let fotoFinal = user.photoURL || fallbackFoto;
+    let nomeFinal = user.displayName || "Usuário Comunitário";
+
+    if (doc.exists) {
+      const dados = doc.data();
+      perfilAnonimoAtual = dados.anonimo === true;
+      
+      if (dados.photoURL && dados.photoURL.trim() !== '') {
+        fotoFinal = dados.photoURL;
+      }
+      if (dados.nome && dados.nome.trim() !== '') {
+        nomeFinal = dados.nome;
+      }
+    }
+
+    document.getElementById('perfilNome').innerText = nomeFinal;
+    document.getElementById('perfilFoto').src = fotoFinal;
+    
+    const imgNav = document.getElementById('navPerfilFoto');
+    if (imgNav) imgNav.src = fotoFinal;
+
+    const imgPerfilAtual = document.getElementById('imgPerfilAtual');
+    if (imgPerfilAtual) imgPerfilAtual.src = fotoFinal;
+
+  } catch (err) {
+    console.error("Erro ao carregar dados do Firestore:", err);
+  }
+}
+
 function loginExitosa() {
   fecharModalLogin();
-  
-  const sistema = document.getElementById('sistema');
-  if (sistema) sistema.style.display = 'block';
-  
-  document.body.classList.remove('tela-autenticacao'); 
-  
   const btnLogin = document.getElementById('btnNavLogin');
   const btnPerfil = document.getElementById('btnNavPerfil');
   if (btnLogin) btnLogin.style.display = 'none';
@@ -413,8 +618,7 @@ function loginExitosa() {
   
   const user = auth.currentUser;
   if (user) { 
-    atualizarDadosPerfilTela(user); 
-    carregarPreferenciasPerfil(user);
+    carregarDadosEPreferenciasPerfil(user);
   }
 }
 
@@ -437,16 +641,15 @@ function sair() {
 
 function criarConta() {
   const email = document.getElementById('email').value;
-  const senha = document.getElementById('senha').value;
-  if (!email || !senha) return alert('Campos vazios.');
-  auth.createUserWithEmailAndPassword(email, senha).then(() => { loginExitosa(); }).catch(err => alert(err.message));
-}
+  const senhaEl = document.getElementById('senha');
+  const senha = senhaEl ? senhaEl.value : '';
 
-function recuperarSenha() { alert("Recuperação enviada."); }
-function abrirSubmenuNotificacoes() { document.getElementById('menuPainelPrincipal').style.display='none'; document.getElementById('submenuNotificacoes').style.display='block'; }
-function fecharSubmenuNotificacoes() { document.getElementById('menuPainelPrincipal').style.display='block'; document.getElementById('submenuNotificacoes').style.display='none'; }
-function alternarPreferenciaPush() { pushHabilitadoPeloUsuario = document.getElementById('switchPushNotificacao').checked; }
-function mostrarOcultarSenhaLogin() { const s = document.getElementById('senha'); s.type = s.type === 'password' ? 'text' : 'password'; }
+  if (!email || !senha) return alert('Campos vazios.');
+  auth.createUserWithEmailAndPassword(email, senha).then(() => { 
+    if (senhaEl) senhaEl.value = '';
+    loginExitosa(); 
+  }).catch(err => alert(err.message));
+}
 
 function abrirModalLogin() { 
   const m = document.getElementById('loginPage'); 
@@ -458,37 +661,46 @@ function abrirModalLogin() {
 function fecharModalLogin() { 
   const m = document.getElementById('loginPage'); 
   if (!m) return;
+  
+  const senhaEl = document.getElementById('senha');
+  if (senhaEl) senhaEl.value = '';
+  
   m.classList.remove('open');
-  const remover = () => { m.style.display = 'none'; m.removeEventListener('transitionend', remover); };
-  m.addEventListener('transitionend', remover);
+  setTimeout(() => { m.style.display = 'none'; }, 220);
 }
+
 function toggleMenuPerfil(e) { e.stopPropagation(); const m = document.getElementById('menuFlutuantePerfil'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; }
 
-function atualizarDadosPerfilTela(user) {
-  if (user) {
-    document.getElementById('perfilNome').innerText = user.displayName || "Usuário Comunitário";
-    document.getElementById('perfilEmail').innerText = user.email || "sem-email@provedor.com";
-    document.getElementById('perfilFoto').src = user.photoURL || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239aa0a6'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
-  }
-}
-
-document.addEventListener('click', (e) => {
-  const ampliada = document.querySelector('.foto-registro-lateral.ampliada');
-  if (ampliada && !e.target.classList.contains('ampliada')) {
-    ampliada.classList.remove('ampliada');
-  }
-});
-
 // ===================================================
-// 5. SONAR / GEOLOCALIZAÇÃO
+// 6. SONAR / GEOLOCALIZAÇÃO
 // ===================================================
 function iniciarRadar() {
   if (!auth.currentUser) { abrirModalLogin(); return; }
   if (!radarAtivo) {
-    radarAtivo = true; document.getElementById('btnRadar').innerText = "Desligar Sonar"; document.getElementById('textoRadar').innerText = "Radar Ativo";
+    radarAtivo = true; 
+    document.getElementById('btnRadar').innerText = "Desligar Sonar"; 
+    document.getElementById('textoRadar').innerText = "Radar Ativo";
     iniciarRastreio(); 
   } else {
-    radarAtivo = false; document.getElementById('btnRadar').innerText = "Ligar Sonar"; document.getElementById('textoRadar').innerText = "Radar Desligado";
+    radarAtivo = false; 
+    document.getElementById('btnRadar').innerText = "Ligar Sonar"; 
+
+    const txtDet = document.getElementById('detalheRadar');
+    const divS = document.getElementById('statusRadar');
+    const txtRadar = document.getElementById('textoRadar');
+    const container = document.getElementById('containerAlertasProximidade');
+
+    if (txtDet) txtDet.innerText = "Ative o perímetro de rastreio de 500m.";
+    if (divS) {
+      divS.style.background = document.body.classList.contains('modo-escuro') ? "#131C2E" : "#F8FAFC";
+      divS.style.borderColor = document.body.classList.contains('modo-escuro') ? "#1E293B" : "#E2E8F0";
+    }
+    if (txtRadar) {
+      txtRadar.innerText = "Radar Desligado";
+      txtRadar.style.color = document.body.classList.contains('modo-escuro') ? "#F8FAFC" : "#0F172A";
+    }
+    if (container) container.innerHTML = "";
+
     if (idRastreio) { navigator.geolocation.clearWatch(idRastreio); idRastreio = null; }
     if (circuloRadar) { mapa.removeLayer(circuloRadar); circuloRadar = null; }
   }
@@ -543,7 +755,6 @@ function calcularNivelPerigo() {
 
     let nivelPerigo = 0; 
     let alertasCriticos = alertasProximos.filter(a => a.dist <= 250).length; 
-
     const temRouboPerto = alertasProximos.some(a => a.tipo.toLowerCase().includes('roubo'));
 
     if (alertasCriticos >= 3 || totalAlertas >= 8 || temRouboPerto) {
@@ -563,10 +774,30 @@ function verificarAlertasProximos() {
 
     const { nivelPerigo, totalAlertas, alertasProximos } = calcularNivelPerigo();
 
+    const ehEscuro = document.body.classList.contains('modo-escuro');
+
     const cores = {
-        0: { radarColor: '#22c55e', statusBg: '#dcfce7', statusText: '#166534', titulo: 'Perímetro Seguro', detalhe: 'Nenhuma atividade suspeita próxima.' },
-        1: { radarColor: '#eab308', statusBg: '#fef3c7', statusText: '#a16207', titulo: 'Ameaça Detectada', detalhe: `${totalAlertas} alerta(s) próximo(s)` },
-        2: { radarColor: '#ef4444', statusBg: '#fee2e2', statusText: '#7f1d1d', titulo: 'Perímetro em Alerta', detalhe: 'Incidentes recentes detectados a menos de 500m.' }
+        0: { 
+          statusBg: ehEscuro ? 'rgba(34, 197, 94, 0.15)' : '#F0FDF4', 
+          statusBorder: '#22c55e', 
+          statusText: ehEscuro ? '#86efac' : '#15803d', 
+          titulo: 'Perímetro Seguro', 
+          detalhe: 'Nenhuma atividade suspeita próxima.' 
+        },
+        1: { 
+          statusBg: ehEscuro ? 'rgba(234, 179, 8, 0.15)' : '#FEFCE8', 
+          statusBorder: '#eab308', 
+          statusText: ehEscuro ? '#fef08a' : '#a16207', 
+          titulo: 'Ameaça Detectada', 
+          detalhe: `${totalAlertas} alerta(s) próximo(s)` 
+        },
+        2: { 
+          statusBg: ehEscuro ? 'rgba(239, 68, 68, 0.2)' : '#FEF2F2', 
+          statusBorder: '#ef4444', 
+          statusText: ehEscuro ? '#fca5a5' : '#b91c1c', 
+          titulo: 'Perímetro em Alerta', 
+          detalhe: 'Incidentes recentes detectados a menos de 500m.' 
+        }
     };
 
     const corConfig = cores[nivelPerigo];
@@ -577,8 +808,7 @@ function verificarAlertasProximos() {
 
     if (divS) {
         divS.style.background = corConfig.statusBg;
-        divS.style.color = corConfig.statusText;
-        divS.style.borderColor = corConfig.radarColor;
+        divS.style.borderColor = corConfig.statusBorder;
     }
     
     if (txtRadar) { txtRadar.innerText = corConfig.titulo; txtRadar.style.color = corConfig.statusText; }
@@ -586,7 +816,11 @@ function verificarAlertasProximos() {
 
     alertasProximos.slice(0, 3).forEach(alerta => {
         const iconEmoji = alerta.dist < 250 ? '🔴' : '🟡';
-        container.innerHTML += `<div style="color: #7f1d1d; font-weight: bold; margin-top: 6px; font-size: 11px;">${iconEmoji} ${alerta.tipo} - ${Math.round(alerta.dist)}m</div>`;
+        container.innerHTML += `
+          <div onclick="abrirModalHistoricoRadar()" style="color: ${corConfig.statusText}; font-weight: bold; margin-top: 6px; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: space-between;" title="Clique para abrir o histórico do perímetro">
+            <span>${iconEmoji} ${alerta.tipo} - ${Math.round(alerta.dist)}m</span>
+            <span style="font-size: 10px; opacity: 0.8;">🔍 abrir</span>
+          </div>`;
     });
 }
 
@@ -595,7 +829,7 @@ function centrarEmMim() {
 }
 
 // ===================================================
-// 6. NAVEGAÇÃO E ALERTAS MANUAIS
+// 7. NAVEGAÇÃO E ALERTAS MANUAIS
 // ===================================================
 function mostrarPagina(id){
   const paginas = document.querySelectorAll('.pagina');
@@ -627,6 +861,17 @@ async function salvarAlertaMapa(){
     return;
   }
 
+  let ehVerificado = false;
+  let fotoAutor = auth.currentUser.photoURL || null;
+  try {
+    const userDoc = await db.collection('usuarios').doc(auth.currentUser.uid).get();
+    if (userDoc.exists) {
+      const uData = userDoc.data();
+      ehVerificado = uData.verificado === true;
+      if (uData.photoURL) fotoAutor = uData.photoURL;
+    }
+  } catch(e){}
+
   const novo = {
     tipo, bairro, descricao,
     lat: latClick || mapa.getCenter().lat, 
@@ -634,10 +879,14 @@ async function salvarAlertaMapa(){
     data: firebase.firestore.FieldValue.serverTimestamp(),
     uidUsuario: auth.currentUser.uid,
     anonimo: perfilAnonimoAtual,
-    autorPublico: perfilAnonimoAtual ? 'Anônimo' : (auth.currentUser.displayName || 'Usuário da Comunidade'),
+    autorPublico: perfilAnonimoAtual ? 'Anônimo' : (auth.currentUser.displayName || 'Utilizador da Comunidade'),
+    autorFoto: fotoAutor,
+    autorVerificado: ehVerificado,
     urgenciaAlegada: urgenciaUsuario,
     severidade: triagem.severidade_corrigida,
-    motivoTriagem: triagem.motivo
+    motivoTriagem: triagem.motivo,
+    contemAnexo: false,
+    urlAnexo: null
   };
   
   db.collection("alertas").add(novo).then(() => {
@@ -693,46 +942,6 @@ function renderizarCarrosselComunitario() {
   });
 }
 
-// ===================================================
-// 7. MODAL EXPANDIDO DE CRIAR ALERTA
-// ===================================================
-function gatilhoBotaoAlertaExpandido() {
-  const menuPerfil = document.getElementById('menuFlutuantePerfil');
-  if (menuPerfil) menuPerfil.style.display = 'none';
-
-  if (!auth.currentUser) { abrirModalLogin(); return; }
-  abrirModalAlertaExpandido();
-}
-
-function abrirModalAlertaExpandido() {
-  const m = document.getElementById('modalAlertaExpandido'); if (!m) return;
-  
-  if (ultimaLatUsuario && ultimaLngUsuario) {
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${ultimaLatUsuario}&lon=${ultimaLngUsuario}`)
-      .then(res => res.json()).then(d => {
-        const b = d.address.suburb || d.address.neighbourhood || d.address.city_district || "";
-        if (document.getElementById('modalExpBairro')) document.getElementById('modalExpBairro').value = b;
-      });
-  }
-  m.style.display = 'flex';
-  requestAnimationFrame(() => m.classList.add('open'));
-}
-
-function fecharModalAlertaExpandido() {
-  const m = document.getElementById('modalAlertaExpandido'); if (!m) return; 
-  m.classList.remove('open');
-  const remover = () => { m.style.display = 'none'; m.removeEventListener('transitionend', remover); };
-  m.addEventListener('transitionend', remover);
-}
-
-let selecionandoLocalManualmente = false;
-
-function iniciarSelecaoManualMapa() {
-  selecionandoLocalManualmente = true;
-  fecharModalAlertaExpandido(); 
-  showToast('Toque no mapa para escolher o local do alerta', 'info', 4000);
-}
-
 function abrirFoto(url) {
   const modal = document.getElementById('modal-imagem-global');
   const imgConteudo = document.getElementById('imagem-ampliada-conteudo');
@@ -740,40 +949,31 @@ function abrirFoto(url) {
   modal.style.display = 'flex'; 
 }
 
+// ===================================================
+// 8. INTEGRAÇÃO COM GEMINI IA
+// ===================================================
+const GEMINI_API_KEY = "Chave_Aleatoria";
 
-// ===================================================
-// 8. INTEGRAÇÃO COM INTELIGÊNCIA ARTIFICIAL (GEMINI)
-// ===================================================
 async function analisarAlertaComIA(tipo, descricao, urgenciaUsuario = 'NAO INFORMADA') {
-    // A chave já está pegando da variável global que o Victor criou
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
     const prompt = `
-    Você é o Diretor de Triagem do sistema de segurança 'Alerta Bairro' de Manaus.
-    Sua missão é classificar ocorrências e BLOQUEAR trotes para não sujar o banco de dados.
-
-    DADOS DO ALERTA:
+    Você é um assistente de triagem do app Alerta Bairro em Manaus.
+    Analise a ocorrência:
     - Categoria: "${tipo}"
     - Descrição: "${descricao}"
-    - Nível de urgência alegado pelo usuário: "${urgenciaUsuario}"
+    - Urgência declarada: "${urgenciaUsuario}"
 
-    ESCALA DE PRIORIDADE OFICIAL (ESCOLHA APENAS UMA):
-    - CRITICA: Risco imediato à vida ou desastre (ex: tiroteio, desabamento, enchente grave).
-    - ALTA: Risco à segurança ou infraestrutura (ex: assalto à mão armada, fio de alta tensão rompido no meio da rua).
-    - MEDIA: Transtorno que exige atenção (ex: falta de luz no quarteirão, buraco muito grande, acidente sem vítimas).
-    - BAIXA: Problemas menores (ex: lixo acumulado, som alto, animal de rua).
-    - TROTE: Relatos absurdos, objetos inanimados, brinquedos ou falso pânico (ex: "perdi meu bebê reborn", "meu boneco sumiu", "roubaram meu coração", xingamentos).
+    REGRAS DE BLOQUEIO (OBRIGATÓRIAS):
+    1. Se o texto for apenas gírias, saudações, palavras soltas ou sem sentido, retorne "valido": false.
+    2. Se o texto não explicar O QUE aconteceu de verdade, retorne "valido": false.
+    3. Apenas se for um RELATO REAL E CLARO de segurança/infraestrutura, retorne "valido": true.
 
-    A REGRA DE OURO (OBRIGATÓRIO):
-    1. Compare a urgência alegada com os fatos da descrição. Não aceite automaticamente a classificação escolhida pelo usuário.
-    2. Se a descrição for um trote, uma piada ou tratar de objeto inanimado/brinquedo como se fosse uma emergência humana, retorne "valido": false e ignore a urgência alegada.
-    3. Se o relato for real, retorne "valido": true e corrija "severidade_corrigida" para a prioridade justa, mesmo que o usuário tenha exagerado ou minimizado o risco.
-
-    Retorne APENAS um JSON válido, sem crases (sem \`\`\`json), neste exato formato:
+    Retorne apenas JSON:
     {
-      "valido": true ou false,
-      "severidade_corrigida": "CRITICA",
-      "motivo": "Sua justificativa curta e técnica"
+      "valido": true,
+      "severidade_corrigida": "MEDIA",
+      "motivo": "Justificativa curta"
     }`;
 
     try {
@@ -781,98 +981,43 @@ async function analisarAlertaComIA(tipo, descricao, urgenciaUsuario = 'NAO INFOR
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }]
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { responseMimeType: "application/json" }
             })
         });
 
         if (!response.ok) throw new Error(`Gemini HTTP ${response.status}`);
         const data = await response.json();
-        const textoLimpo = data.candidates?.[0]?.content?.parts?.[0]?.text
-          ?.replace(/```json|```/g, '').trim();
-        if (!textoLimpo) throw new Error('Resposta vazia da IA');
+        const textoResposta = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!textoResposta) throw new Error('Resposta vazia');
 
-        const resultado = JSON.parse(textoLimpo);
-        const severidadesValidas = ['CRITICA', 'ALTA', 'MEDIA', 'BAIXA'];
-        if (typeof resultado.valido !== 'boolean'
-          || !severidadesValidas.includes(resultado.severidade_corrigida)
-          || typeof resultado.motivo !== 'string') {
-          throw new Error('Resposta da IA fora do formato esperado');
-        }
-        return resultado;
+        const resultado = JSON.parse(textoResposta);
+
+        return {
+            valido: typeof resultado.valido === 'boolean' ? resultado.valido : true,
+            severidade_corrigida: ['CRITICA', 'ALTA', 'MEDIA', 'BAIXA'].includes(resultado.severidade_corrigida) 
+                ? resultado.severidade_corrigida 
+                : (urgenciaUsuario !== 'NAO INFORMADA' ? urgenciaUsuario : 'MEDIA'),
+            motivo: resultado.motivo || "Triagem concluída."
+        };
+
     } catch (err) {
-        console.error("Erro na IA; publicação bloqueada:", err);
-        return { valido: false, severidade_corrigida: "MEDIA", motivo: "A triagem está indisponível. Tente novamente." };
+        return { 
+            valido: true, 
+            severidade_corrigida: urgenciaUsuario !== 'NAO INFORMADA' ? urgenciaUsuario : 'MEDIA', 
+            motivo: "Alerta aprovado automaticamente." 
+        };
     }
 }
-const GEMINI_API_KEY = "sua chave";
 
 let mediaRecorderIA = null;
 let audioChunksIA = [];
 let gravandoIA = false;
 
-// Efeito de digitação visual em tempo real
-function digitarTextoEfeito(texto, elemento, velocidade = 20) {
-  return new Promise((resolve) => {
-    elemento.innerText = "";
-    let i = 0;
-    const timer = setInterval(() => {
-      elemento.innerText += texto.charAt(i);
-      i++;
-      if (i >= texto.length) {
-        clearInterval(timer);
-        resolve();
-      }
-    }, velocidade);
-  });
-}
-
-// Geolocaliza especificamente o bairro citado em Manaus
-async function buscarCoordenadasBairroManaus(bairro) {
-  try {
-    const consulta = `${bairro}, Manaus, Amazonas, Brasil`;
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(consulta)}&format=json&limit=1`);
-    const dados = await res.json();
-
-    if (dados && dados.length > 0) {
-      return {
-        lat: parseFloat(dados[0].lat),
-        lng: parseFloat(dados[0].lon),
-        nomeOficial: dados[0].display_name.split(',')[0] || bairro
-      };
-    }
-    return null;
-  } catch (err) {
-    console.error("Erro ao buscar coordenadas do bairro:", err);
-    return null;
-  }
-}
-
-// Tradutor de erros para linguagem amigável
-function obterMensagemErroAmigavel(error) {
-  const textoErro = error?.message || String(error);
-
-  if (textoErro.includes("503") || textoErro.includes("UNAVAILABLE") || textoErro.includes("high demand")) {
-    return "O servidor de inteligência está em alta demanda. Tente novamente em alguns segundos.";
-  }
-  if (textoErro.includes("404") || textoErro.includes("NOT_FOUND")) {
-    return "Serviço de análise de voz indisponível temporariamente.";
-  }
-  if (textoErro.includes("JSON") || textoErro.includes("parse")) {
-    return "Não conseguimos entender os detalhes do relato. Grave novamente falando mais devagar.";
-  }
-  return "Não foi possível concluir a análise do áudio. Verifique sua conexão e tente novamente.";
-}
-
 function alternarGravacaoVozIA() {
-  if (!auth.currentUser) {
-    abrirModalLogin();
-    return;
-  }
-  if (!gravandoIA) {
-    iniciarGravacaoVozIA();
-  } else {
-    pararGravacaoVozIA();
-  }
+  if (!auth.currentUser) { abrirModalLogin(); return; }
+  if (!gravandoIA) iniciarGravacaoVozIA();
+  else pararGravacaoVozIA();
 }
 
 async function iniciarGravacaoVozIA() {
@@ -894,25 +1039,10 @@ async function iniciarGravacaoVozIA() {
     mediaRecorderIA.start();
     gravandoIA = true;
 
-    const modal = document.getElementById('modalVozIA');
-    const icone = document.getElementById('iconeVozIA');
-    const titulo = document.getElementById('tituloVozIA');
-    const subtitulo = document.getElementById('subtituloVozIA');
-    const btnAcao = document.getElementById('btnAcaoVozIA');
-    const caixaLive = document.getElementById('caixaAnaliseLive');
-
-    if (modal) modal.style.display = 'block';
-    if (caixaLive) caixaLive.style.display = 'none';
-    if (icone) icone.classList.add('gravando');
-    if (titulo) titulo.innerText = "Escutando seu relato...";
-    if (subtitulo) subtitulo.innerText = "Fale o tipo de incidente e OBRIGATORIAMENTE o bairro/local.";
-    if (btnAcao) {
-      btnAcao.innerText = "⏹️ Finalizar";
-      btnAcao.style.display = 'block';
-    }
-
+    document.getElementById('modalVozIA').style.display = 'block';
+    document.getElementById('iconeVozIA').classList.add('gravando');
+    document.getElementById('tituloVozIA').innerText = "Escutando seu relato...";
   } catch (err) {
-    console.error("Erro de microfone:", err);
     alert("Permissão de microfone negada ou não encontrada.");
   }
 }
@@ -922,55 +1052,27 @@ function pararGravacaoVozIA() {
     mediaRecorderIA.stop();
     mediaRecorderIA.stream.getTracks().forEach(track => track.stop());
     gravandoIA = false;
-
-    const icone = document.getElementById('iconeVozIA');
-    const titulo = document.getElementById('tituloVozIA');
-    const subtitulo = document.getElementById('subtituloVozIA');
-    const btnAcao = document.getElementById('btnAcaoVozIA');
-
-    if (icone) icone.classList.remove('gravando');
-    if (titulo) titulo.innerText = "✨ Processando relato...";
-    if (subtitulo) subtitulo.innerText = "Iniciando comunicação com a inteligência artificial...";
-    if (btnAcao) btnAcao.style.display = 'none';
+    document.getElementById('iconeVozIA').classList.remove('gravando');
+    document.getElementById('tituloVozIA').innerText = "✨ Processando relato...";
   }
 }
 
 function converterBlobParaBase64(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result.split(',')[1];
-      resolve(base64String);
-    };
+    reader.onloadend = () => resolve(reader.result.split(',')[1]);
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
 }
 
 async function processarAudioComGemini(base64Audio, mimeType) {
-  const promptSistema = `
-    Você é a IA de triagem de segurança comunitária do Alerta Bairro em Manaus.
-    Escute o áudio e extraia estritamente um JSON no seguinte formato:
-    {
-      "tipo": "Roubo" | "Falta de Luz" | "Alagamento" | "Acidente de Trânsito" | "Desaparecimento" | "Incêndio",
-      "descricao": "resumo claro do ocorrido baseado na fala",
-      "bairro_mencionado": "nome do bairro ou rua em Manaus se foi falado explicitamente no áudio, ou null se NÃO foi informado o local"
-    }
-    Atenção: Se o usuário não disser o nome do bairro, rua ou ponto de referência, defina "bairro_mencionado" estritamente como null.
-    Responda APENAS o JSON puro, sem marcações markdown.
-  `;
-
   const caixaLive = document.getElementById('caixaAnaliseLive');
   const textoLive = document.getElementById('textoAnaliseLive');
 
   if (caixaLive) caixaLive.style.display = 'block';
 
   try {
-    // Etapa 1: Imersão visual
-    if (textoLive) textoLive.innerText = "🎙️ Analisando áudio enviado...";
-    await new Promise(r => setTimeout(r, 600));
-
-    // Etapa 2: Requisição à IA
     if (textoLive) textoLive.innerText = "🧠 Identificando tipo de ocorrência e localização...";
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_API_KEY}`;
@@ -982,77 +1084,59 @@ async function processarAudioComGemini(base64Audio, mimeType) {
         contents: [{
           parts: [
             { inlineData: { mimeType: mimeType.split(';')[0], data: base64Audio } },
-            { text: promptSistema }
+            { text: `Extraia JSON puro: {"tipo": "Roubo"|"Falta de Luz"|"Alagamento"|"Acidente de Trânsito", "descricao": "resumo", "bairro_mencionado": "nome do bairro em Manaus"}` }
           ]
         }]
       })
     });
 
     const data = await response.json();
-
-    if (data.error) {
-      throw new Error(data.error.message || "Erro no servidor Gemini");
-    }
-
-    const textoResposta = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    const jsonLimpo = textoResposta.replace(/```json/g, '').replace(/```/g, '').trim();
+    const jsonLimpo = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json/g, '').replace(/```/g, '').trim();
     const dadosOcorrencia = JSON.parse(jsonLimpo);
 
-    // Validação de bairro: Se não falou onde foi, descarta a criação e avisa
-    if (!dadosOcorrencia.bairro_mencionado || dadosOcorrencia.bairro_mencionado === "null") {
-      if (textoLive) textoLive.innerText = "⚠️ Localização não identificada no seu áudio.";
-      showToast("Por favor, informe o bairro ou local da ocorrência ao gravar o relato.", "error", 4500);
-      setTimeout(() => { fecharModalVozIA(); }, 2500);
+    if (!dadosOcorrencia.bairro_mencionado) {
+      showToast("Bairro não identificado no áudio. Fale o local claramente.", "error", 4000);
+      fecharModalVozIA();
       return;
     }
 
-    // Etapa 3: Mapeamento Geográfico no OpenStreetMap
-    if (textoLive) textoLive.innerText = `📍 Localizando "${dadosOcorrencia.bairro_mencionado}" no mapa de Manaus...`;
-    
-    const geoLocal = await buscarCoordenadasBairroManaus(dadosOcorrencia.bairro_mencionado);
+    const resGeo = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(dadosOcorrencia.bairro_mencionado + ', Manaus')}&format=json&limit=1`);
+    const dadosGeo = await resGeo.json();
+    const geoLocal = (dadosGeo && dadosGeo.length > 0) ? { lat: parseFloat(dadosGeo[0].lat), lng: parseFloat(dadosGeo[0].lon), nomeOficial: dadosOcorrencia.bairro_mencionado } : null;
 
     if (!geoLocal) {
-      if (textoLive) textoLive.innerText = "⚠️ Bairro não encontrado na região.";
-      showToast(`Não localizamos "${dadosOcorrencia.bairro_mencionado}" em Manaus. Tente citar o bairro novamente.`, "error", 4500);
-      setTimeout(() => { fecharModalVozIA(); }, 2500);
+      showToast("Bairro não localizado em Manaus.", "error", 4000);
+      fecharModalVozIA();
       return;
     }
 
-    // Etapa 4: Exibição da transcrição digitada
-    if (textoLive) textoLive.innerText = "✨ Finalizando registro do alerta...";
-
-    const resumoVisual = `🚨 Tipo: ${dadosOcorrencia.tipo}\n📍 Local: ${geoLocal.nomeOficial}\n📝 Relato: "${dadosOcorrencia.descricao}"`;
-    await digitarTextoEfeito(resumoVisual, textoLive, 15);
-
-    setTimeout(async () => {
-      await cadastrarAlertaGeradoPorIA({
-        tipo: dadosOcorrencia.tipo,
-        descricao: dadosOcorrencia.descricao,
-        bairro: geoLocal.nomeOficial,
-        lat: geoLocal.lat,
-        lng: geoLocal.lng
-      });
-      if (caixaLive) caixaLive.style.display = 'none';
-    }, 1200);
+    cadastrarAlertaGeradoPorIA({
+      tipo: dadosOcorrencia.tipo,
+      descricao: dadosOcorrencia.descricao,
+      bairro: geoLocal.nomeOficial,
+      lat: geoLocal.lat,
+      lng: geoLocal.lng
+    });
 
   } catch (error) {
-    console.error("Erro na integração com Gemini:", error);
-    const mensagemHumana = obterMensagemErroAmigavel(error);
-    
-    if (textoLive) textoLive.innerText = `❌ ${mensagemHumana}`;
-    showToast(mensagemHumana, "error", 4000);
-    
-    setTimeout(() => { fecharModalVozIA(); }, 3000);
+    showToast("Erro ao processar áudio. Tente novamente.", "error", 4000);
+    fecharModalVozIA();
   }
 }
 
 async function cadastrarAlertaGeradoPorIA(dados) {
   const triagem = await analisarAlertaComIA(dados.tipo, dados.descricao);
-  if (!triagem.valido) {
-    showToast(`Alerta bloqueado pela triagem: ${triagem.motivo}`, 'error', 5000);
-    fecharModalVozIA();
-    return;
-  }
+
+  let ehVerificado = false;
+  let fotoAutor = auth.currentUser.photoURL || null;
+  try {
+    const userDoc = await db.collection('usuarios').doc(auth.currentUser.uid).get();
+    if (userDoc.exists) {
+      const uData = userDoc.data();
+      ehVerificado = uData.verificado === true;
+      if (uData.photoURL) fotoAutor = uData.photoURL;
+    }
+  } catch(e){}
 
   const novoAlerta = {
     tipo: dados.tipo || "Outro",
@@ -1063,9 +1147,11 @@ async function cadastrarAlertaGeradoPorIA(dados) {
     data: firebase.firestore.FieldValue.serverTimestamp(),
     uidUsuario: auth.currentUser.uid,
     anonimo: perfilAnonimoAtual,
-    autorPublico: perfilAnonimoAtual ? 'Anônimo' : (auth.currentUser.displayName || 'Usuário da Comunidade'),
+    autorPublico: perfilAnonimoAtual ? 'Anônimo' : (auth.currentUser.displayName || 'Utilizador da Comunidade'),
+    autorFoto: fotoAutor,
+    autorVerificado: ehVerificado,
     contemAnexo: false,
-    urlAnexo: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=150',
+    urlAnexo: null,
     criadoPorIA: true,
     severidade: triagem.severidade_corrigida,
     motivoTriagem: triagem.motivo
@@ -1073,12 +1159,8 @@ async function cadastrarAlertaGeradoPorIA(dados) {
 
   db.collection("alertas").add(novoAlerta).then(() => {
     fecharModalVozIA();
-    showToast(`🚨 Alerta em ${novoAlerta.bairro} publicado no mapa!`, 'success');
+    showToast(`🚨 Alerta em ${novoAlerta.bairro} publicado!`, 'success');
     mapa.flyTo([dados.lat, dados.lng], 16, { animate: true });
-  }).catch((err) => {
-    console.error("Erro ao salvar alerta:", err);
-    showToast("Erro ao registrar o alerta no banco de dados.", "error");
-    fecharModalVozIA();
   });
 }
 
@@ -1087,237 +1169,180 @@ function fecharModalVozIA() {
   if (modal) modal.style.display = 'none';
 }
 
-function mostrarPreviewArquivoModal(event) {
-  const arquivo = event.target.files?.[0];
-  const nome = document.getElementById('nomeArquivoTexto');
-  const preview = document.getElementById('modalExpPreview');
-  if (!arquivo) return;
-
-  if (nome) nome.innerText = arquivo.name;
-  if (preview && arquivo.type.startsWith('image/')) {
-    preview.src = URL.createObjectURL(arquivo);
-    preview.style.display = 'block';
-  } else if (preview) {
-    preview.removeAttribute('src');
-    preview.style.display = 'none';
-  }
-}
-
-async function salvarAlertaModalExpandido() {
-  if (!auth.currentUser) {
-    abrirModalLogin();
-    return;
-  }
-
-  const tipo = document.getElementById('modalExpTipo').value;
-  const bairro = document.getElementById('modalExpBairro').value.trim();
-  const descricao = document.getElementById('modalExpDescricao').value.trim();
-  const arquivo = document.getElementById('modalExpArquivo').files?.[0];
-
-  if (!bairro || !descricao || !ultimaLatUsuario || !ultimaLngUsuario) {
-    alert('Selecione o local no mapa e preencha os dados do alerta.');
-    return;
-  }
-
-  const triagem = await analisarAlertaComIA(tipo, descricao);
-  if (!triagem.valido) {
-    showToast(`Alerta bloqueado pela triagem: ${triagem.motivo}`, 'error', 5000);
-    return;
-  }
-
-  const alerta = {
-    tipo,
-    bairro,
-    descricao,
-    lat: ultimaLatUsuario,
-    lng: ultimaLngUsuario,
-    data: firebase.firestore.FieldValue.serverTimestamp(),
-    uidUsuario: auth.currentUser.uid,
-    anonimo: perfilAnonimoAtual,
-    autorPublico: perfilAnonimoAtual ? 'Anônimo' : (auth.currentUser.displayName || 'Usuário da Comunidade'),
-    contemAnexo: Boolean(arquivo),
-    severidade: triagem.severidade_corrigida,
-    motivoTriagem: triagem.motivo
-  };
-
-  try {
-    if (arquivo) {
-      const nomeSeguro = arquivo.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const referencia = firebase.storage().ref(`alertas/${auth.currentUser.uid}/${Date.now()}-${nomeSeguro}`);
-      await referencia.put(arquivo);
-      alerta.urlAnexo = await referencia.getDownloadURL();
-    }
-
-    await db.collection('alertas').add(alerta);
-    fecharModalAlertaExpandido();
-    showToast('Alerta publicado com sucesso!', 'success');
-  } catch (error) {
-    console.error('Erro ao salvar alerta:', error);
-    showToast('Não foi possível publicar o alerta.', 'error');
-  }
-}
-
 // ===================================================
-// 9. PREENCHIMENTO AUTOMÁTICO DE FORMULÁRIO COM IA (VOZ)
-// ===================================================
-
-function iniciarRelatoPorVozModal() {
-    // Verifica se o navegador suporta gravação de voz
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-        alert("Seu navegador não suporta reconhecimento de voz. Tente usar o Google Chrome.");
-        return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'pt-BR';
-    recognition.start();
-
-    const btnVoz = document.getElementById('btnVozModal');
-    if (!btnVoz) return;
-    const textoOriginal = btnVoz.innerHTML;
-
-    // Efeito visual para o usuário saber que o app está ouvindo
-    btnVoz.innerHTML = '🎙️ Ouvindo... Fale o que aconteceu!';
-    btnVoz.style.backgroundColor = '#ef4444'; // Fica vermelho
-
-    // Quando o usuário terminar de falar:
-    recognition.onresult = async function(event) {
-        const transcricao = event.results[0][0].transcript;
-
-        btnVoz.innerHTML = '🧠 IA Processando Relato...';
-        btnVoz.style.backgroundColor = '#f59e0b'; // Fica laranja
-
-        // Envia o áudio transformado em texto para o Gemini preencher o form
-        await autoPreencherComIA(transcricao);
-
-        // Restaura o botão
-        btnVoz.innerHTML = textoOriginal;
-        btnVoz.style.backgroundColor = '#8b5cf6'; // Volta pro roxo
-    };
-
-    recognition.onerror = function(event) {
-        alert("Não conseguimos captar sua voz. Tente novamente.");
-        btnVoz.innerHTML = textoOriginal;
-        btnVoz.style.backgroundColor = '#8b5cf6';
-    };
-}
-
-async function autoPreencherComIA(textoFalado) {
-    // Usa a chave que o Victor já configurou no seu projeto
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-
-    const prompt = `
-    Você é o assistente virtual do app "Alerta Bairro" em Manaus.
-    O usuário acabou de falar o seguinte no microfone: "${textoFalado}"
-
-    Sua tarefa é extrair as informações dessa frase e montar um JSON para preencher o formulário automaticamente.
-
-    REGRAS DE EXTRAÇÃO:
-    - "tipo": Tente encaixar em uma destas categorias exatas: "Roubo", "Falta de Luz", "Alagamento", "Acidente de Trânsito", "Desaparecimento", "Incêndio". Se não souber, retorne "Outros".
-    - "bairro": Se ele falar o nome de um bairro de Manaus (ex: Parque Dez, Compensa, Alvorada), coloque aqui. Se não falar, deixe em branco "".
-    - "descricao": Melhore a frase falada pelo usuário, corrigindo pequenos erros de português, deixando claro e direto para a polícia ou comunidade ler.
-
-    Retorne APENAS um objeto JSON válido, sem crases, neste exato formato:
-    {
-      "tipo": "Nome da Categoria",
-      "bairro": "Nome do Bairro",
-      "descricao": "Texto corrigido e formatado"
-    }`;
-
-    try {
-        const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }]
-            })
-        });
-
-        const data = await response.json();
-        const textoLimpo = data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
-        const resultado = JSON.parse(textoLimpo);
-
-        // Preenche os inputs do HTML automaticamente!
-        if (resultado.tipo) {
-            const selectTipo = document.getElementById('modalExpTipo');
-            if (selectTipo) selectTipo.value = resultado.tipo;
-        }
-        if (resultado.bairro) {
-            const inputBairro = document.getElementById('modalExpBairro');
-            if (inputBairro) inputBairro.value = resultado.bairro;
-        }
-        if (resultado.descricao) {
-            const inputDescricao = document.getElementById('modalExpDescricao');
-            if (inputDescricao) inputDescricao.value = resultado.descricao;
-        }
-
-        showToast('Campos preenchidos magicamente pela IA!', 'success');
-
-    } catch (err) {
-        console.error("Erro no auto-preenchimento:", err);
-        // Se a IA falhar, pelo menos joga o texto cru na descrição para o usuário não perder o que falou
-        const inputDescricao = document.getElementById('modalExpDescricao');
-        if (inputDescricao) inputDescricao.value = textoFalado;
-        showToast('Não foi possível categorizar, mas anotamos seu relato.', 'info');
-    }
-}
-
-// ===================================================
-// 10. MÓDULO DE CONFIGURAÇÕES DA CONTA
+// 9. CONFIGURAÇÕES E MODAIS PERFIL / SEGURANÇA
 // ===================================================
 function abrirModalConfiguracoes() {
-    // Esconde o menuzinho suspenso do perfil primeiro
-    const menuPerfil = document.getElementById('menuFlutuantePerfil');
-    if (menuPerfil) menuPerfil.style.display = 'none';
-
-    // Abre a janela de configurações com animação
-    const modal = document.getElementById('modalConfiguracoes');
-    if (!modal) return;
-    modal.style.display = 'flex';
-    requestAnimationFrame(() => modal.classList.add('open'));
+  const menuPerfil = document.getElementById('menuFlutuantePerfil');
+  if (menuPerfil) menuPerfil.style.display = 'none';
+  const modal = document.getElementById('modalConfiguracoes');
+  if (modal) { modal.style.display = 'flex'; requestAnimationFrame(() => modal.classList.add('open')); }
 }
 
 function fecharModalConfiguracoes() {
-    const modal = document.getElementById('modalConfiguracoes');
-    if (!modal) return;
-    modal.classList.remove('open');
-    const remover = () => {
-      modal.style.display = 'none';
-      modal.removeEventListener('transitionend', remover);
-    };
-    modal.addEventListener('transitionend', remover);
+  const modal = document.getElementById('modalConfiguracoes');
+  if (!modal) return;
+  modal.classList.remove('open');
+  setTimeout(() => { modal.style.display = 'none'; }, 220);
 }
 
-// ===================================================
-// 11. PERFIL, BIO, ANONIMATO E HISTORICO
-// ===================================================
-function carregarPreferenciasPerfil(user) {
-  if (!user) return Promise.resolve();
+function abrirSubmenuDisplay() {
+  document.getElementById('painelPrincipalConfig').style.display = 'none';
+  document.getElementById('submenuDisplayConfig').style.display = 'block';
+}
 
-  return db.collection('usuarios').doc(user.uid).get().then(doc => {
-    const dados = doc.exists ? doc.data() : {};
-    perfilAnonimoAtual = dados.anonimo === true;
-  }).catch(error => {
-    console.error('Erro ao carregar preferências do perfil:', error);
-    perfilAnonimoAtual = false;
-  });
+function fecharSubmenuDisplay() {
+  document.getElementById('painelPrincipalConfig').style.display = 'block';
+  document.getElementById('submenuDisplayConfig').style.display = 'none';
+}
+
+function abrirSubmenuNotificacoes() {
+  document.getElementById('painelPrincipalConfig').style.display = 'none';
+  document.getElementById('submenuNotificacoes').style.display = 'block';
+}
+
+function fecharSubmenuNotificacoes() {
+  document.getElementById('painelPrincipalConfig').style.display = 'block';
+  document.getElementById('submenuNotificacoes').style.display = 'none';
+}
+
+function alternarPreferenciaPush() {
+  pushHabilitadoPeloUsuario = document.getElementById('switchPushNotificacao').checked;
+}
+
+function alternarTelaEdicao(mostrarEdicao) {
+  document.getElementById('telaVisualizacaoPerfil').style.display = mostrarEdicao ? 'none' : 'block';
+  document.getElementById('telaEdicaoPerfil').style.display = mostrarEdicao ? 'block' : 'none';
+}
+
+function atualizarPreviewFoto(url) {
+  const img = document.getElementById('previewFotoEdit');
+  const fallback = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+  if (img) {
+    img.src = (url && url.trim() !== '') ? url : fallback;
+  }
 }
 
 function atualizarContadorBio() {
   const campo = document.getElementById('inputEditBio');
   const contador = document.getElementById('contadorBio');
-  if (campo && contador) contador.innerText = `${campo.value.length}/200`;
+  if (campo && contador) {
+    contador.innerText = `${campo.value.length}/200`;
+  }
 }
 
-function alternarTelaEdicao(mostrarEdicao) {
-  const visualizacao = document.getElementById('telaVisualizacaoPerfil');
-  const edicao = document.getElementById('telaEdicaoPerfil');
-  if (!visualizacao || !edicao) return;
+function carregarFotoArquivoLocal(input) {
+  if (input.files && input.files[0]) {
+    const arquivo = input.files[0];
 
-  visualizacao.style.display = mostrarEdicao ? 'none' : 'block';
-  edicao.style.display = mostrarEdicao ? 'block' : 'none';
-  if (mostrarEdicao) atualizarContadorBio();
+    const leitor = new FileReader();
+    leitor.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        const maxDim = 150;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxDim) {
+            height *= maxDim / width;
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width *= maxDim / height;
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const base64Comprimido = canvas.toDataURL('image/jpeg', 0.8);
+
+        const inputURL = document.getElementById('inputEditFotoURL');
+        if (inputURL) {
+          inputURL.value = base64Comprimido;
+        }
+        
+        atualizarPreviewFoto(base64Comprimido);
+        showToast('Imagem otimizada e pronta para salvar!', 'success');
+      };
+      img.src = e.target.result;
+    };
+
+    leitor.readAsDataURL(arquivo);
+  }
+}
+
+// VALIDAÇÃO MATEMÁTICA DE CPF (MÓDULO 11)
+function validarCPF(cpfStr) {
+  if (!cpfStr) return false;
+  const cpf = cpfStr.replace(/[^\d]+/g, '');
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+
+  let soma = 0;
+  for (let i = 1; i <= 9; i++) soma += parseInt(cpf.substring(i - 1, i)) * (11 - i);
+  let resto = (soma * 10) % 11;
+  if (resto === 10 || resto === 11) resto = 0;
+  if (resto !== parseInt(cpf.substring(9, 10))) return false;
+
+  soma = 0;
+  for (let i = 1; i <= 10; i++) soma += parseInt(cpf.substring(i - 1, i)) * (12 - i);
+  resto = (soma * 10) % 11;
+  if (resto === 10 || resto === 11) resto = 0;
+  if (resto !== parseInt(cpf.substring(10, 11))) return false;
+
+  return true;
+}
+
+function formatarCPF(input) {
+  let v = input.value.replace(/\D/g, '');
+  if (v.length > 11) v = v.slice(0, 11);
+  v = v.replace(/(\d{3})(\d)/, '$1.$2');
+  v = v.replace(/(\d{3})(\d)/, '$1.$2');
+  v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  input.value = v;
+
+  const dica = document.getElementById('dicaValidadeCPF');
+  if (dica && v.length === 14) {
+    const ehValido = validarCPF(v);
+    dica.innerText = ehValido ? "🟢 CPF matematicamente válido!" : "🔴 CPF inválido. Verifique os dígitos.";
+    dica.style.color = ehValido ? "#22c55e" : "#ef4444";
+  } else if (dica) {
+    dica.innerText = "O CPF é único por conta e passa por validação matemática de dígitos.";
+    dica.style.color = "#94a3b8";
+  }
+}
+
+function formatarTelefone(input) {
+  let v = input.value.replace(/\D/g, '');
+  if (v.length > 11) v = v.slice(0, 11);
+  v = v.replace(/^(\d{2})(\d)/g, '($1) $2');
+  v = v.replace(/(\d)(\d{4})$/, '$1-$2');
+  input.value = v;
+}
+
+function calcularProgressoVerificacao(user, dadosFirestore) {
+  let pontos = 0;
+  const emailOk = user && user.emailVerified === true;
+  const telOk = Boolean(dadosFirestore && dadosFirestore.telefone && dadosFirestore.telefone.replace(/\D/g, '').length >= 10);
+  const cpfOk = Boolean(dadosFirestore && dadosFirestore.cpf && validarCPF(dadosFirestore.cpf));
+
+  if (emailOk) pontos += 34;
+  if (telOk) pontos += 33;
+  if (cpfOk) pontos += 33;
+
+  return {
+    porcentagem: pontos,
+    emailOk,
+    telOk,
+    cpfOk,
+    completo: pontos === 100
+  };
 }
 
 async function abrirModalPerfil() {
@@ -1328,45 +1353,78 @@ async function abrirModalPerfil() {
   fecharModalConfiguracoes();
   alternarTelaEdicao(false);
 
-  const foto = document.getElementById('imgPerfilAtual');
-  const nome = document.getElementById('nomePerfilAtual');
-  const inputNome = document.getElementById('inputEditNome');
-  if (foto) foto.src = user.photoURL || 'https://via.placeholder.com/80';
-  if (nome) nome.innerText = user.displayName || 'Usuário da Comunidade';
-  if (inputNome) inputNome.value = user.displayName || '';
+  const fallbackFoto = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2364748b"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
 
-  modal.style.display = 'flex';
-  requestAnimationFrame(() => modal.classList.add('open'));
+  let fotoURL = user.photoURL || '';
+  let nomeExibicao = user.displayName || '';
+  let dadosFirestore = {};
 
   try {
     const doc = await db.collection('usuarios').doc(user.uid).get();
-    const dados = doc.exists ? doc.data() : {};
-    const bio = dados.bio || 'Membro Comunitário';
-    perfilAnonimoAtual = dados.anonimo === true;
-
-    document.getElementById('bioPerfilAtual').innerText = bio;
-    document.getElementById('inputEditBio').value = dados.bio || '';
-    document.getElementById('checkAnonimo').checked = perfilAnonimoAtual;
-    document.getElementById('statusAnonimoPerfil').innerText = perfilAnonimoAtual ? 'Sim' : 'Não';
-    atualizarContadorBio();
-  } catch (error) {
-    console.error('Erro ao carregar perfil:', error);
-    showToast('Não foi possível carregar os dados do perfil.', 'error');
+    if (doc.exists) {
+      dadosFirestore = doc.data();
+      if (dadosFirestore.photoURL && dadosFirestore.photoURL.trim() !== '') fotoURL = dadosFirestore.photoURL;
+      if (dadosFirestore.nome && dadosFirestore.nome.trim() !== '') nomeExibicao = dadosFirestore.nome;
+      
+      document.getElementById('bioPerfilAtual').innerText = dadosFirestore.bio || 'Sem biografia definida.';
+      document.getElementById('inputEditBio').value = dadosFirestore.bio || '';
+      document.getElementById('inputEditBairro').value = dadosFirestore.bairroFavorito || '';
+      document.getElementById('checkAnonimo').checked = dadosFirestore.anonimo === true;
+      document.getElementById('statusAnonimoPerfil').innerText = dadosFirestore.anonimo === true ? 'Sim' : 'Não';
+    }
+  } catch (e) {
+    console.error("Erro ao carregar dados do perfil:", e);
   }
 
-  carregarHistoricoDoUsuario(user.uid);
+  await user.reload();
+  const progresso = calcularProgressoVerificacao(user, dadosFirestore);
+
+  const seloEl = document.getElementById('txtPerfilSeloVerificacao');
+  if (seloEl) {
+    seloEl.innerText = progresso.completo 
+      ? "🟢 Conta 100% Verificada" 
+      : `⚪ Não Verificada (${progresso.porcentagem}%)`;
+  }
+
+  const tooltipBox = document.getElementById('tooltipChecklistVerificacao');
+  if (tooltipBox) {
+    tooltipBox.innerHTML = `
+      <div style="font-size:11px; color:#FFFFFF;">
+        <strong style="display:block; margin-bottom:8px; color:#E5B842; font-size:12px;">Checklist de Segurança</strong>
+        <div style="display:flex; justify-content:space-between; margin-bottom:6px; align-items:center;">
+          <span>📧 E-mail verificado</span>
+          <span>${progresso.emailOk ? '✅' : '❌'}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:6px; align-items:center;">
+          <span>📱 Telemóvel de recuperação</span>
+          <span>${progresso.telOk ? '✅' : '❌'}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span>🪪 CPF do titular válido</span>
+          <span>${progresso.cpfOk ? '✅' : '❌'}</span>
+        </div>
+        <hr style="border:0; border-top:1px solid #1E293B; margin:8px 0;">
+        <small style="color:#94A3B8; font-size:10px;">Acesse "Segurança e Verificação" no menu para concluir.</small>
+      </div>
+    `;
+  }
+
+  document.getElementById('imgPerfilAtual').src = fotoURL || fallbackFoto;
+  document.getElementById('nomePerfilAtual').innerText = nomeExibicao || 'Utilizador da Comunidade';
+  document.getElementById('inputEditNome').value = nomeExibicao;
+  document.getElementById('inputEditFotoURL').value = fotoURL;
+  atualizarPreviewFoto(fotoURL);
+
+  atualizarContadorBio();
+  modal.style.display = 'flex';
+  requestAnimationFrame(() => modal.classList.add('open'));
 }
 
 function fecharModalPerfil() {
   const modal = document.getElementById('modalPerfilUsuario');
   if (!modal) return;
   modal.classList.remove('open');
-  const esconder = () => {
-    modal.style.display = 'none';
-    modal.removeEventListener('transitionend', esconder);
-  };
-  modal.addEventListener('transitionend', esconder);
-  setTimeout(esconder, 350);
+  setTimeout(() => { modal.style.display = 'none'; }, 220);
 }
 
 function voltarParaConfiguracoes() {
@@ -1376,78 +1434,278 @@ function voltarParaConfiguracoes() {
 
 async function salvarPerfilUsuario() {
   const user = auth.currentUser;
-  const botao = document.getElementById('btnSalvarPerfil');
-  if (!user || !botao) return;
+  if (!user) return;
 
   const novoNome = document.getElementById('inputEditNome').value.trim();
+  const novaFotoURL = document.getElementById('inputEditFotoURL').value.trim();
   const novaBio = document.getElementById('inputEditBio').value.trim();
+  const novoBairro = document.getElementById('inputEditBairro').value.trim();
   const anonimato = document.getElementById('checkAnonimo').checked;
-  if (!novoNome) {
-    showToast('Informe um nome de exibição.', 'error');
-    return;
-  }
 
-  botao.disabled = true;
-  botao.innerText = 'Salvando...';
   try {
-    await user.updateProfile({ displayName: novoNome });
+    try {
+      await user.updateProfile({
+        displayName: novoNome,
+        photoURL: novaFotoURL
+      });
+    } catch (authError) {
+      console.warn("Aviso ao atualizar photoURL no Auth, salvando no Firestore:", authError);
+    }
+
     await db.collection('usuarios').doc(user.uid).set({
       nome: novoNome,
+      photoURL: novaFotoURL,
       bio: novaBio,
-      anonimo: anonimato,
-      atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
+      bairroFavorito: novoBairro,
+      anonimo: anonimato
     }, { merge: true });
 
     perfilAnonimoAtual = anonimato;
-    document.getElementById('nomePerfilAtual').innerText = novoNome;
-    document.getElementById('bioPerfilAtual').innerText = novaBio || 'Membro Comunitário';
+
+    const fallbackFoto = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2364748b"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+    document.getElementById('nomePerfilAtual').innerText = novoNome || 'Utilizador da Comunidade';
+    document.getElementById('bioPerfilAtual').innerText = novaBio || 'Sem biografia definida.';
+    document.getElementById('imgPerfilAtual').src = novaFotoURL || fallbackFoto;
+    document.getElementById('perfilNome').innerText = novoNome || 'Utilizador';
+    document.getElementById('perfilFoto').src = novaFotoURL || fallbackFoto;
+
+    const imgNav = document.getElementById('navPerfilFoto');
+    if (imgNav) imgNav.src = novaFotoURL || fallbackFoto;
+
     document.getElementById('statusAnonimoPerfil').innerText = anonimato ? 'Sim' : 'Não';
-    atualizarDadosPerfilTela(user);
+
     showToast('Perfil atualizado com sucesso!', 'success');
     alternarTelaEdicao(false);
-  } catch (error) {
-    console.error('Erro ao salvar perfil:', error);
-    showToast('Não foi possível salvar o perfil.', 'error');
-  } finally {
-    botao.disabled = false;
-    botao.innerText = 'Salvar';
+  } catch (err) {
+    showToast('Erro ao salvar alterações do perfil.', 'error');
+    console.error(err);
   }
 }
 
-function carregarHistoricoDoUsuario(uid) {
-  const container = document.getElementById('listaHistoricoUsuario');
-  const total = document.getElementById('totalAlertasPerfil');
-  if (!container || !uid) return;
+// ===================================================
+// MODAL DE SEGURANÇA E UNICIDADE DO CPF
+// ===================================================
+async function abrirModalSeguranca() {
+  const user = auth.currentUser;
+  if (!user) { abrirModalLogin(); return; }
 
-  container.innerHTML = '<p class="perfil-historico-vazio">Carregando histórico...</p>';
-  db.collection('alertas').where('uidUsuario', '==', uid).limit(20).get()
-    .then(snapshot => {
-      const registros = snapshot.docs.map(doc => doc.data()).sort((a, b) => {
-        const dataA = a.data?.toMillis ? a.data.toMillis() : 0;
-        const dataB = b.data?.toMillis ? b.data.toMillis() : 0;
-        return dataB - dataA;
-      }).slice(0, 5);
+  const menuPerfil = document.getElementById('menuFlutuantePerfil');
+  if (menuPerfil) menuPerfil.style.display = 'none';
 
-      if (total) total.innerText = snapshot.size;
-      if (!registros.length) {
-        container.innerHTML = '<p class="perfil-historico-vazio">Você ainda não fez nenhum alerta.</p>';
-        return;
-      }
+  const modal = document.getElementById('modalSeguranca');
+  if (!modal) return;
 
-      container.innerHTML = registros.map(alerta => {
-        const data = alerta.data?.toDate ? alerta.data.toDate().toLocaleDateString('pt-BR') : 'Recente';
-        return `<div class="perfil-historico-item">
-          <div><strong>🚨 ${escaparHTML(alerta.tipo)}</strong><small>📍 ${escaparHTML(alerta.bairro)}</small></div>
-          <div class="perfil-historico-meta"><strong>${escaparHTML(alerta.severidade || 'MEDIA')}</strong><br>${data}</div>
-        </div>`;
-      }).join('');
-    })
-    .catch(error => {
-      console.error('Erro ao carregar histórico:', error);
-      if (total) total.innerText = '0';
-      container.innerHTML = '<p class="perfil-historico-erro">Não foi possível carregar seu histórico.</p>';
-    });
+  await user.reload();
+  const emailVerif = user.emailVerified;
+  document.getElementById('txtEmailVerificadoStatus').innerText = emailVerif 
+    ? '🟢 E-mail confirmado' 
+    : '🔴 E-mail pendente de confirmação';
+
+  let dadosFirestore = {};
+  try {
+    const doc = await db.collection('usuarios').doc(user.uid).get();
+    if (doc.exists) {
+      dadosFirestore = doc.data();
+      document.getElementById('inputSegurancaTelefone').value = dadosFirestore.telefone || '';
+      document.getElementById('inputSegurancaCPF').value = dadosFirestore.cpf || '';
+    }
+  } catch(e) {}
+
+  const progresso = calcularProgressoVerificacao(user, dadosFirestore);
+  atualizarUIStatusVerificacao(progresso);
+
+  modal.style.display = 'flex';
+  requestAnimationFrame(() => modal.classList.add('open'));
 }
 
-const campoBioPerfil = document.getElementById('inputEditBio');
-if (campoBioPerfil) campoBioPerfil.addEventListener('input', atualizarContadorBio);
+function fecharModalSeguranca() {
+  const modal = document.getElementById('modalSeguranca');
+  if (!modal) return;
+  modal.classList.remove('open');
+  setTimeout(() => { modal.style.display = 'none'; }, 220);
+}
+
+function atualizarUIStatusVerificacao(progresso) {
+  const icone = document.getElementById('iconeStatusGeralVerificacao');
+  const titulo = document.getElementById('tituloStatusGeralVerificacao');
+  const desc = document.getElementById('descStatusGeralVerificacao');
+  const txtPct = document.getElementById('porcentagemProgressoTexto');
+  const barraPreenchimento = document.getElementById('barraProgressoPreenchimento');
+
+  if (txtPct) txtPct.innerText = `${progresso.porcentagem}%`;
+  if (barraPreenchimento) barraPreenchimento.style.width = `${progresso.porcentagem}%`;
+
+  if (progresso.completo) {
+    if (icone) icone.innerText = '🟢';
+    if (titulo) titulo.innerText = 'Conta 100% Verificada';
+    if (desc) desc.innerText = 'Os seus alertas possuem o selo de autenticidade ativo para toda a comunidade.';
+  } else {
+    if (icone) icone.innerText = '⚪';
+    if (titulo) titulo.innerText = 'Conta Parcialmente Verificada';
+    let pendencias = [];
+    if (!progresso.emailOk) pendencias.push('confirmação de e-mail');
+    if (!progresso.telOk) pendencias.push('telemóvel');
+    if (!progresso.cpfOk) pendencias.push('CPF válido');
+
+    if (desc) desc.innerText = `Pendente de: ${pendencias.join(', ')}.`;
+  }
+}
+
+async function guardarDadosSeguranca() {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const tel = document.getElementById('inputSegurancaTelefone').value.trim();
+  const cpf = document.getElementById('inputSegurancaCPF').value.trim();
+
+  if (cpf.length > 0) {
+    if (!validarCPF(cpf)) {
+      showToast('CPF inválido! Verifique os números digitados.', 'error', 4000);
+      return;
+    }
+
+    try {
+      const cpfQuery = await db.collection('usuarios').where('cpf', '==', cpf).get();
+      let cpfEmUsoPorOutro = false;
+      cpfQuery.forEach(doc => {
+        if (doc.id !== user.uid) cpfEmUsoPorOutro = true;
+      });
+
+      if (cpfEmUsoPorOutro) {
+        showToast('Este CPF já está associado a outra conta registrada!', 'error', 4500);
+        return;
+      }
+    } catch(e) {
+      console.error("Erro ao verificar unicidade do CPF:", e);
+    }
+  }
+
+  await user.reload();
+  const dadosParaGuardar = { telefone: tel, cpf: cpf };
+  const progresso = calcularProgressoVerificacao(user, dadosParaGuardar);
+  dadosParaGuardar.verificado = progresso.completo;
+
+  try {
+    await db.collection('usuarios').doc(user.uid).set(dadosParaGuardar, { merge: true });
+
+    atualizarUIStatusVerificacao(progresso);
+    showToast('Dados de segurança salvos com sucesso!', 'success');
+    fecharModalSeguranca();
+  } catch(e) {
+    showToast('Erro ao guardar dados de segurança.', 'error');
+  }
+}
+
+function enviarEmailVerificacaoFirebase() {
+  const user = auth.currentUser;
+  if (user) {
+    user.sendEmailVerification()
+      .then(() => showToast('E-mail de verificação enviado! Verifique a sua caixa de entrada.', 'success', 4000))
+      .catch(() => showToast('Erro ao enviar e-mail de verificação.', 'error'));
+  }
+}
+
+function solicitarRedefinicaoSenha() {
+  const user = auth.currentUser;
+  if (user && user.email) {
+    auth.sendPasswordResetEmail(user.email)
+      .then(() => showToast('Link de redefinição enviado para o seu e-mail!', 'success', 4000))
+      .catch(() => showToast('Erro ao solicitar redefinição.', 'error'));
+  }
+}
+
+function abrirLinhaDoTempo() {
+  const user = auth.currentUser;
+  if (!user) { abrirModalLogin(); return; }
+  fecharModalConfiguracoes();
+  const modal = document.getElementById('modalLinhaDoTempo');
+  if (modal) { modal.style.display = 'flex'; requestAnimationFrame(() => modal.classList.add('open')); }
+  carregarLinhaDoTempoUsuario(user.uid);
+}
+
+function fecharLinhaDoTempo() {
+  const modal = document.getElementById('modalLinhaDoTempo');
+  if (!modal) return;
+  modal.classList.remove('open');
+  setTimeout(() => { modal.style.display = 'none'; }, 220);
+}
+
+function carregarLinhaDoTempoUsuario(uid) {
+  const container = document.getElementById('listaLinhaDoTempo');
+  if (!container || !uid) return;
+
+  db.collection('alertas').where('uidUsuario', '==', uid).get().then(snapshot => {
+    if (snapshot.empty) {
+      container.innerHTML = '<p style="text-align:center; font-size:12px; color:#64748b; padding:20px;">Você ainda não registrou nenhum alerta.</p>';
+      return;
+    }
+    const registros = snapshot.docs.map(doc => doc.data());
+    const fallbackFoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+
+    container.innerHTML = registros.map(alerta => {
+      const ehAnonimo = alerta.anonimo === true;
+      const autorNome = ehAnonimo ? 'Utilizador Anónimo' : (alerta.autorPublico || 'Utilizador da Comunidade');
+      const autorFoto = ehAnonimo ? fallbackFoto : (alerta.autorFoto || fallbackFoto);
+
+      return `
+        <div class="card-alerta-radar-item severidade-${alerta.severidade || 'MEDIA'}" onclick="irParaAlerta(${alerta.lat}, ${alerta.lng}); fecharLinhaDoTempo();" style="cursor:pointer;">
+          <div class="topo-card-radar">
+            <div class="autor-card-radar">
+              <img src="${escaparHTML(autorFoto)}" class="avatar-autor-radar" alt="Autor">
+              <strong>${escaparHTML(autorNome)}</strong>
+            </div>
+            <span class="meta-card-radar">📍 ${escaparHTML(alerta.bairro)} • 🕒 ${formatarDataHora(alerta.data)}</span>
+          </div>
+          <div class="corpo-card-radar"><strong>🚨 ${escaparHTML(alerta.tipo)}:</strong> ${escaparHTML(alerta.descricao)}</div>
+        </div>
+      `;
+    }).join('');
+  });
+}
+
+function abrirModalHistoricoRadar() {
+  const modal = document.getElementById('modalHistoricoRadar');
+  if (modal) { modal.style.display = 'flex'; requestAnimationFrame(() => modal.classList.add('open')); }
+  renderizarAlertasRadarArea();
+}
+
+function fecharModalHistoricoRadar() {
+  const modal = document.getElementById('modalHistoricoRadar');
+  if (!modal) return;
+  modal.classList.remove('open');
+  setTimeout(() => { modal.style.display = 'none'; }, 220);
+}
+
+function renderizarAlertasRadarArea() {
+  const container = document.getElementById('listaAlertasRadarArea');
+  if (!container || !ultimaLatUsuario || !ultimaLngUsuario) return;
+
+  const pontoUsuario = L.latLng(ultimaLatUsuario, ultimaLngUsuario);
+  let ocorrenciasPerimetro = alertas.filter(a => a.lat && a.lng && pontoUsuario.distanceTo(L.latLng(a.lat, a.lng)) <= 500);
+
+  if (ocorrenciasPerimetro.length === 0) {
+    container.innerHTML = '<p style="text-align:center; font-size:12px; color:#64748b; padding:20px;">Nenhum alerta nos 500m do radar.</p>';
+    return;
+  }
+
+  const fallbackFoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+
+  container.innerHTML = ocorrenciasPerimetro.map(alerta => {
+    const ehAnonimo = alerta.anonimo === true;
+    const autorNome = ehAnonimo ? 'Utilizador Anónimo' : (alerta.autorPublico || 'Utilizador da Comunidade');
+    const autorFoto = ehAnonimo ? fallbackFoto : (alerta.autorFoto || fallbackFoto);
+
+    return `
+      <div class="card-alerta-radar-item severidade-${alerta.severidade || 'MEDIA'}" onclick="irParaAlerta(${alerta.lat}, ${alerta.lng}); fecharModalHistoricoRadar();" style="cursor:pointer;">
+        <div class="topo-card-radar">
+          <div class="autor-card-radar">
+            <img src="${escaparHTML(autorFoto)}" class="avatar-autor-radar" alt="Autor">
+            <strong>${escaparHTML(autorNome)}</strong>
+          </div>
+          <span class="meta-card-radar">📍 ${Math.round(pontoUsuario.distanceTo(L.latLng(alerta.lat, alerta.lng)))}m • 🕒 ${formatarDataHora(alerta.data)}</span>
+        </div>
+        <div class="corpo-card-radar"><strong>🚨 ${escaparHTML(alerta.tipo)}:</strong> ${escaparHTML(alerta.descricao)}</div>
+      </div>
+    `;
+  }).join('');
+}

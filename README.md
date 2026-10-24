@@ -19,6 +19,12 @@ Este projeto foi construído focando em performance, sem a dependência de frame
 *   Inteligência Artificial: Google Gemini API (LLM para NLP)
 *   DevOps: GitHub Actions (CI/CD Pipeline)
 
+## Configuração local do Gemini
+
+O repositório carrega `gemini-config.example.js` por padrão, sem uma chave real. Para testar a integração localmente, copie esse arquivo para `gemini-config.js` (já ignorado pelo Git), adicione sua chave e altere localmente a referência no `index.html` para `gemini-config.js`. Não inclua a chave em commits.
+
+Como a aplicação web chama o Gemini diretamente, a chave fica visível no navegador. Restrinja-a no Google Cloud Console por referenciadores HTTP e APIs permitidas. Para evitar exposição e abuso, prefira mover a chamada para uma função serverless. Consulte [Restringir uma chave de API](https://cloud.google.com/docs/authentication/api-keys#api_key_restrictions).
+
 
 *ATUALIZAÇÃO 06/09/2026*
 

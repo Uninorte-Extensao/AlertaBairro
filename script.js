@@ -9,6 +9,7 @@ const firebaseConfig = {
   messagingSenderId: "726524118429",
   appId: "1:726524118429:web:35f9dc6935efb157321b74"
 };
+const MODELO_GEMINI = 'gemini-2.0-flash';
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
@@ -963,9 +964,9 @@ function abrirFoto(url) {
 // 8. INTEGRAÇÃO COM GEMINI IA
 // ===================================================
 function obterUrlGemini(modelo) {
-  const chaveConfigurada = window.ALERTA_BAIRRO_GEMINI_API_KEY;
+  const chaveConfigurada = window.GEMINI_CONFIG?.API_KEY || window.ALERTA_BAIRRO_GEMINI_API_KEY;
   const chave = typeof chaveConfigurada === 'string' ? chaveConfigurada.trim() : '';
-  if (!chave || chave.startsWith('COLE_SUA_CHAVE_')) {
+  if (!chave || chave.startsWith('COLE_SUA_CHAVE_') || chave === 'SUA_CHAVE_API_AQUI') {
     throw new Error('GEMINI_API_KEY_AUSENTE: configure a chave local do Gemini.');
   }
   return `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${encodeURIComponent(chave)}`;
@@ -1030,7 +1031,7 @@ async function analisarAlertaComIA(tipo, descricao, urgenciaUsuario = 'NAO INFOR
     }`;
 
     try {
-    const url = obterUrlGemini('gemini-3.8-flash');
+    const url = obterUrlGemini(MODELO_GEMINI);
         let response;
         for (let tentativa = 0; tentativa < 2; tentativa++) {
           try {
@@ -1159,7 +1160,7 @@ async function processarAudioComGemini(base64Audio, mimeType) {
   try {
     if (textoLive) textoLive.innerText = "🧠 Identificando tipo de ocorrência e localização...";
 
-    const url = obterUrlGemini('gemini-3.6-flash');
+    const url = obterUrlGemini(MODELO_GEMINI);
 
     const response = await fetch(url, {
       method: 'POST',

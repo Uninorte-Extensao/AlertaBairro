@@ -1,0 +1,36 @@
+name: Validação pós-merge (main)
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build de produção
+        run: echo "Projeto estático. Nenhum build necessário."
+
+      - name: Testes
+        run: echo "Projeto estático. Testes automáticos ignorados."
+
+  notify:
+    needs: build-main
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resultado do merge
+        run: |
+          if [ "${{ needs.build-main.result }}" = "success" ]; then
+            echo "✅ Build da main passou depois do merge."
+          else
+            echo "❌ Build da main falhou depois do merge. Avisar a equipe antes do próximo PR."
+          fi

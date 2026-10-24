@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alerta Bairro - Manaus</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- CABEÇALHO -->
+  <header>
+    <div style="display: flex; align-items: center;">
+      <h1 style="cursor: pointer;" onclick="mostrarPagina('inicio')">🚨 Alerta Bairro</h1>
+    </div>
+    <nav>
+      <button id="btnNavInicio" onclick="mostrarPagina('inicio')">Início</button>
+      <button id="btnNavMapa" onclick="mostrarPagina('mapaPagina')">Mapa ao Vivo</button>
+      <button id="btnNavLogin" onclick="abrirModalLogin()">Entrar</button>
+      <button id="btnNavPerfil" onclick="toggleMenuPerfil(event)" class="btn-nav-perfil-avatar" style="display: none;">
+        <img id="navPerfilFoto" class="avatar-nav-top" src="" alt="Perfil">
+        <span>Meu Perfil</span> ▾
+      </button>
+    </nav>
+  </header>
+
+  <!-- MENU FLUTUANTE DO PERFIL -->
+  <div id="menuFlutuantePerfil" class="gemini-menu-perfil">
+    <div class="gemini-perfil-user-info">
+      <img id="perfilFoto" class="avatar-menu-usuario" src="" alt="Foto de perfil">
+      <div class="gemini-perfil-user-text">
+        <h4 id="perfilNome">Utilizador</h4>
+        <p id="perfilEmail">email@provedor.com</p>
+      </div>
+    </div>
+    <hr class="gemini-divisor">
+    <ul class="gemini-menu-opcoes">
+      <li onclick="abrirModalPerfil()">👤 Seu perfil</li>
+      <li onclick="abrirModalConfiguracoes()">⚙️ Configurações da conta</li>
+      <li onclick="abrirModalSeguranca()">🛡️ Segurança e Verificação</li>
+      <li onclick="abrirLinhaDoTempo()">📈 Alertas gerados pelo usuário</li>
+      <li class="opcao-sair" onclick="sair()">🚪 Sair</li>
+    </ul>
+  </div>
+
+  <!-- CONTAINER DE PÁGINAS -->
+  <div class="container">
+
+    <!-- PÁGINA: LANDING PAGE -->
+    <div id="inicio" class="pagina ativa landing-page">
+      <div class="landing-content">
+        
+        <!-- HERO SECTION -->
+        <section class="hero-section">
+          <div class="hero-text">
+            <span class="badge-tag">Plataforma Comunitária Manaus</span>
+            <h2>Segurança comunitária em tempo real para o seu bairro</h2>
+            <p>Monitore ocorrências na sua região, colabore com relatos instantâneos via voz com IA e mantenha sua comunidade segura com o Alerta Bairro.</p>
+            <div class="hero-botoes-grupo">
+              <button class="btn-landing-cta" onclick="mostrarPagina('mapaPagina')">Ver Mapa ao Vivo 🗺️</button>
+              <button class="btn-landing-secundario" onclick="abrirModalLogin()">Criar Conta Grátis</button>
+            </div>
+          </div>
+          <div class="hero-imagem-container">
+            <img src="https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&w=800&q=80" alt="Mapa de Madeira" class="hero-img-destaque">
+          </div>
+        </section>
+
+        <!-- ESTATÍSTICAS -->
+        <section class="stats-section">
+          <div class="stat-card">
+            <h3>24/7</h3>
+            <p>Monitoramento Contínuo</p>
+          </div>
+          <div class="stat-card">
+            <h3>100%</h3>
+            <p>Colaboração Comunitária</p>
+          </div>
+          <div class="stat-card">
+            <h3>IA</h3>
+            <p>Triagem Inteligente de Voz</p>
+          </div>
+        </section>
+
+        <!-- RECURSOS -->
+        <section class="recursos-secao">
+          <h3 class="titulo-secao">Como funciona a rede colaborativa</h3>
+          <div class="grid-recursos">
+            <div class="card-recurso">
+              <div class="icone-recurso">📍</div>
+              <h4>Mapa de Ocorrências em Tempo Real</h4>
+              <p>Visualize roubos, falta de energia, alagamentos e obras marcadas no mapa interativo com mapa de calor das áreas críticas.</p>
+            </div>
+            <div class="card-recurso">
+              <div class="icone-recurso">🎙️</div>
+              <h4>Relatos Inteligentes por Voz</h4>
+              <p>Fale o que aconteceu e a nossa IA interpreta seu relato, identifica o bairro e cadastra o alerta automaticamente.</p>
+            </div>
+            <div class="card-recurso">
+              <div class="icone-recurso">📡</div>
+              <h4>Sonar de Proximidade (500m)</h4>
+              <p>Ative o rastreio e receba avisos em tempo real sempre que qualquer incidente for registrado num raio próximo de você.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- CARROSSEL COMUNITÁRIO -->
+        <div class="container-carrosseis">
+          <div class="secao-carrossel">
+            <div class="topo-carrossel">
+              <h3>🚨 Ocorrências Recentes na Comunidade</h3>
+              <div class="botoes-navegacao">
+                <button onclick="scrollCarrossel('carrosselComunitario', -1)">‹</button>
+                <button onclick="scrollCarrossel('carrosselComunitario', 1)">›</button>
+              </div>
+            </div>
+            <div id="carrosselComunitario" class="elemento-carrossel">
+              <!-- Preenchido via JavaScript -->
+            </div>
+          </div>
+        </div>
+
+        <footer class="landing-footer">
+          <p>&copy; 2026 Alerta Bairro Manaus - Todos os direitos reservados.</p>
+        </footer>
+      </div>
+    </div>
+
+    <!-- PÁGINA: MAPA AO VIVO -->
+    <div id="mapaPagina" class="pagina">
+      
+      <!-- PAINEL DA ESQUERDA: HISTÓRICO GERAL -->
+      <div class="caixa-gemini-alertas">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h3>Atividades Recentes</h3>
+          <button class="btn-voz-ia-filtro" onclick="alternarGravacaoVozIA()">🎙️ Relatar por Voz</button>
+        </div>
+        
+        <!-- Filtros Rápidos -->
+        <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 8px;">
+          <button class="btn-filtro ativo" onclick="filtrarAlertasPorTipo('todos', this)">Todos</button>
+          <button class="btn-filtro" onclick="filtrarAlertasPorTipo('roubo', this)">Roubo</button>
+          <button class="btn-filtro" onclick="filtrarAlertasPorTipo('luz', this)">Falta de Luz</button>
+          <button class="btn-filtro" onclick="filtrarAlertasPorTipo('alagamento', this)">Alagamento</button>
+        </div>
+
+        <div class="gemini-fade-container">
+          <div id="listaAlertas" class="gemini-scroll-conteudo">
+            <!-- Lista de cards preenchida via JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- RADAR FLUTUANTE (SONAR COMUNITÁRIO) -->
+      <div class="radar-flutuante-box">
+        <h3>📡 Sonar Comunitário</h3>
+        <div id="statusRadar">
+          <div id="textoRadar">Radar Desligado</div>
+          <div id="detalheRadar">Ative o perímetro de rastreio de 500m.</div>
+          <div id="containerAlertasProximidade"></div>
+        </div>
+        <button id="btnRadar" onclick="iniciarRadar()">Ligar Sonar</button>
+      </div>
+
+      <!-- BOTÃO CENTRALIZAR -->
+      <button id="btnCentralizar" onclick="centrarEmMim()" disabled title="Centralizar na minha posição">🎯</button>
+
+      <!-- MAPA LEAFLET -->
+      <div id="mapa"></div>
+    </div>
+
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- MODAL: LOGIN / CADASTRO -->
+  <div id="loginPage" class="modal-login">
+    <div class="modal-conteudo">
+      <h2 style="font-size: 18px; margin-bottom: 12px; color: #0A2540;">Acessar a Plataforma</h2>
+      
+      <form id="formLogin" autocomplete="off" onsubmit="event.preventDefault(); login();">
+        <input type="email" id="email" autocomplete="username" placeholder="Seu e-mail" style="width:100%; padding:8px; margin-bottom:8px; border:1px solid #cbd5e1; border-radius:6px;">
+        <input type="password" id="senha" autocomplete="current-password" placeholder="Sua senha" style="width:100%; padding:8px; margin-bottom:12px; border:1px solid #cbd5e1; border-radius:6px;">
+        
+        <button type="submit" style="width:100%; padding:10px; background:#0A2540; color:white; border:none; border-radius:6px; font-weight:600; cursor:pointer; margin-bottom:8px;">Entrar</button>
+      </form>
+
+      <button onclick="loginComGoogle()" style="width:100%; padding:10px; background:#4285F4; color:white; border:none; border-radius:6px; font-weight:600; cursor:pointer; margin-bottom:8px;">Entrar com Google</button>
+      <button onclick="criarConta()" style="width:100%; padding:8px; background:transparent; border:1px solid #0A2540; color:#0A2540; border-radius:6px; font-weight:600; cursor:pointer;">Criar Conta</button>
+      <button onclick="fecharModalLogin()" style="width:100%; padding:6px; background:transparent; border:none; color:#64748b; font-size:12px; cursor:pointer; margin-top:8px;">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- MODAL: PERFIL DO USUÁRIO -->
+  <div id="modalPerfilUsuario" class="modal-login">
+    <div class="perfil-modal-conteudo">
+      <div class="perfil-modal-cabecalho">
+        <button class="perfil-voltar" onclick="voltarParaConfiguracoes()" title="Voltar">←</button>
+        <h2>Seu perfil</h2>
+        <button class="perfil-fechar" onclick="fecharModalPerfil()" title="Fechar">×</button>
+      </div>
+
+      <div id="telaVisualizacaoPerfil" class="perfil-tela">
+        <img id="imgPerfilAtual" class="perfil-avatar-grande" src="" alt="Foto de Perfil">
+        <h3 id="nomePerfilAtual">Nome do Usuário</h3>
+        <p id="bioPerfilAtual" class="perfil-bio">Sua biografia aqui</p>
+
+        <!-- BADGE DE VERIFICAÇÃO E TOOLTIP DE PROGRESSO -->
+        <div class="perfil-verificacao-card">
+          <div class="perfil-verificacao-status-row">
+            <span id="txtPerfilSeloVerificacao" class="badge-selo-perfil">⚪ Não Verificado (0%)</span>
+            <div class="info-tooltip-wrapper">
+              <span class="icone-info-tooltip">i</span>
+              <div id="tooltipChecklistVerificacao" class="tooltip-checklist-box">
+                <!-- Preenchido via JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="perfil-status-anonimo-card">
+          <span class="label-anonimo">Publicar como Anônimo:</span>
+          <span id="statusAnonimoPerfil" class="badge-anonimo">Não</span>
+        </div>
+
+        <button id="btnIrParaEdicao" class="btn-editar-perfil" onclick="alternarTelaEdicao(true)">
+          ✏️ Editar perfil
+        </button>
+      </div>
+
+      <!-- TELA DE EDIÇÃO DE PERFIL -->
+      <div id="telaEdicaoPerfil" class="perfil-tela" style="display: none;">
+        <form class="form-edit-perfil" autocomplete="off" onsubmit="event.preventDefault(); salvarPerfilUsuario();">
+          
+          <div class="card-edit-secao">
+            <label class="label-secao-titulo">Fotografia de Perfil</label>
+            <div class="secao-avatar-edit-box">
+              <div class="preview-avatar-wrapper">
+                <img id="previewFotoEdit" class="avatar-edit-preview" src="" alt="Preview da Foto">
+                <span class="badge-cam-icon">📷</span>
+              </div>
+              <div class="campo-grupo-edit" style="flex: 1;">
+                <label for="inputEditFotoURL">URL ou Imagem Local</label>
+                <div class="input-grupo-upload">
+                  <input type="text" id="inputEditFotoURL" autocomplete="off" placeholder="https://exemplo.com/sua-foto.jpg" oninput="atualizarPreviewFoto(this.value)">
+                  <input type="file" id="inputEditFotoFile" accept="image/*" style="display: none;" onchange="carregarFotoArquivoLocal(this)">
+                  <button type="button" class="btn-upload-arquivo" onclick="document.getElementById('inputEditFotoFile').click()" title="Escolher imagem do dispositivo">
+                    📁 Dispositivo
+                  </button>
+                </div>
+                <small class="dica-campo">Cole um link da web ou selecione uma imagem do seu dispositivo.</small>
+              </div>
+            </div>
+          </div>
+
+          <label class="card-opcao-anonimo">
+            <div class="topo-checkbox-row">
+              <input type="checkbox" id="checkAnonimo">
+              <span>Publicar alertas como anônimo</span>
+            </div>
+            <p class="descricao-opcao-anonimo">
+              Seu nome e foto não serão exibidos publicamente nos alertas registrados.
+            </p>
+          </label>
+
+          <div class="card-edit-secao">
+            <label class="label-secao-titulo">Informações Pessoais</label>
+            
+            <div class="campo-grupo-edit">
+              <label for="inputEditNome">Nome de exibição</label>
+              <input type="text" id="inputEditNome" autocomplete="off" placeholder="Seu nome no aplicativo">
+            </div>
+
+            <div class="campo-grupo-edit">
+              <label for="inputEditBairro">Bairro Habitual / Residência</label>
+              <input type="text" id="inputEditBairro" autocomplete="off" placeholder="Ex: Petrópolis, Parque 10, Centro...">
+            </div>
+
+            <div class="campo-grupo-edit">
+              <label for="inputEditBio">Biografia</label>
+              <textarea id="inputEditBio" autocomplete="off" maxlength="200" rows="3" placeholder="Fale um pouco sobre você..." oninput="atualizarContadorBio()"></textarea>
+              <span id="contadorBio" class="contador-caracteres-bio">0/200</span>
+            </div>
+          </div>
+
+          <div class="botoes-acoes-edit">
+            <button type="button" class="btn-cancelar-edit" onclick="alternarTelaEdicao(false)">Cancelar</button>
+            <button type="submit" id="btnSalvarPerfil" class="btn-salvar-edit">Salvar Alterações</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ALERTAS GERADOS PELO USUÁRIO -->
+  <div id="modalLinhaDoTempo" class="modal-login">
+    <div class="modal-conteudo modal-radar-quadrado">
+      <div class="cabecalho-modal-radar">
+        <h3>📈 Alertas gerados pelo usuário</h3>
+        <button class="perfil-fechar" onclick="fecharLinhaDoTempo()">×</button>
+      </div>
+      <div id="listaLinhaDoTempo" class="container-cards-radar-area"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIGURAÇÕES DA CONTA -->
+  <div id="modalConfiguracoes" class="modal-login">
+    <div class="modal-conteudo" style="padding: 0; overflow: hidden; width: 380px;">
+      
+      <div id="painelPrincipalConfig">
+        <div class="cabecalho-modal-radar" style="margin: 0; padding: 16px; border-radius: 12px 12px 0 0;">
+          <h3 style="margin: 0; font-size: 16px;">Configurações</h3>
+          <button onclick="fecharModalConfiguracoes()" class="perfil-fechar">×</button>
+        </div>
+
+        <div class="lista-configuracoes">
+          <div class="item-config" onclick="abrirModalPerfil()">
+            <div class="icone-config">👤</div>
+            <div class="texto-config">
+              <h4>Seu perfil</h4>
+              <p>Edite seu nome, foto e informações de perfil</p>
+            </div>
+          </div>
+
+          <div class="item-config" onclick="abrirLinhaDoTempo()">
+            <div class="icone-config">📈</div>
+            <div class="texto-config">
+              <h4>Alertas gerados pelo usuário</h4>
+              <p>Veja o histórico de alertas que você relatou</p>
+            </div>
+          </div>
+
+          <div class="item-config" onclick="abrirSubmenuDisplay()">
+            <div class="icone-config">🗺️</div>
+            <div class="texto-config">
+              <h4>App e display</h4>
+              <p>Tema do aplicativo e preferências de exibição</p>
+            </div>
+          </div>
+
+          <div class="item-config" onclick="abrirSubmenuNotificacoes()">
+            <div class="icone-config">🔔</div>
+            <div class="texto-config">
+              <h4>Notificações</h4>
+              <p>Gerencie alertas sonoros e notificações push</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUBMENU: DISPLAY E TEMA -->
+      <div id="submenuDisplayConfig" style="display: none;">
+        <div class="cabecalho-modal-radar" style="margin: 0; padding: 14px 16px; border-radius: 12px 12px 0 0; display: flex; align-items: center; gap: 10px;">
+          <button onclick="fecharSubmenuDisplay()" class="perfil-voltar">←</button>
+          <h3 style="margin: 0; font-size: 15px;">App e display</h3>
+        </div>
+        <div style="padding: 16px;">
+          <div class="item-display-toggle">
+            <div>
+              <strong style="font-size: 13px; display: block;">Modo Escuro</strong>
+              <small style="font-size: 11px;">Alternar para tema noturno de alto contraste</small>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="switchModoEscuro" onchange="alternarModoEscuro(this.checked)">
+              <span class="slider round"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUBMENU: NOTIFICAÇÕES -->
+      <div id="submenuNotificacoes" style="display: none;">
+        <div class="cabecalho-modal-radar" style="margin: 0; padding: 14px 16px; border-radius: 12px 12px 0 0; display: flex; align-items: center; gap: 10px;">
+          <button onclick="fecharSubmenuNotificacoes()" class="perfil-voltar">←</button>
+          <h3 style="margin: 0; font-size: 15px;">Notificações</h3>
+        </div>
+        <div style="padding: 16px;">
+          <div class="item-display-toggle">
+            <div>
+              <strong style="font-size: 13px; display: block;">Alertas no Sonar</strong>
+              <small style="font-size: 11px;">Receber avisos quando houver novos incidentes próximos</small>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="switchPushNotificacao" checked onchange="alternarPreferenciaPush()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL: SEGURANÇA E VERIFICAÇÃO -->
+  <div id="modalSeguranca" class="modal-login">
+    <div class="modal-conteudo modal-radar-quadrado" style="max-width: 440px;">
+      <div class="cabecalho-modal-radar">
+        <h3>🛡️ Segurança e Autenticação</h3>
+        <button class="perfil-fechar" onclick="fecharModalSeguranca()">×</button>
+      </div>
+
+      <div style="padding: 10px 0;">
+        <div id="cardStatusVerificacaoConta" class="card-status-verificacao-box">
+          <div id="iconeStatusGeralVerificacao" class="icone-status-verif">⚪</div>
+          <div style="flex:1;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <h4 id="tituloStatusGeralVerificacao">Conta Não Verificada</h4>
+              <strong id="porcentagemProgressoTexto" style="font-size:12px; color:#E5B842;">0%</strong>
+            </div>
+            
+            <div class="barra-progresso-container">
+              <div id="barraProgressoPreenchimento" class="barra-progresso-preenchimento" style="width: 0%;"></div>
+            </div>
+
+            <p id="descStatusGeralVerificacao">Complete o e-mail, telemóvel e um CPF único e válido para obter o selo de autenticidade.</p>
+          </div>
+        </div>
+
+        <form autocomplete="off" onsubmit="event.preventDefault(); guardarDadosSeguranca();" style="display:flex; flex-direction:column; gap:12px; margin-top:14px;">
+          
+          <div class="campo-grupo-edit">
+            <label for="inputSegurancaTelefone">📱 Telemóvel de Recuperação</label>
+            <input type="text" id="inputSegurancaTelefone" autocomplete="off" placeholder="(92) 99999-9999" maxlength="15" oninput="formatarTelefone(this)">
+          </div>
+
+          <div class="campo-grupo-edit">
+            <label for="inputSegurancaCPF">🪪 CPF do Titular (Validação de Segurança)</label>
+            <input type="text" id="inputSegurancaCPF" autocomplete="off" placeholder="000.000.000-00" maxlength="14" oninput="formatarCPF(this)">
+            <small id="dicaValidadeCPF" class="dica-campo">O CPF é único por conta e passa por validação matemática de dígitos.</small>
+          </div>
+
+          <div class="secao-box-opcao">
+            <div>
+              <strong style="font-size:12px; display:block;">Verificação de E-mail</strong>
+              <small id="txtEmailVerificadoStatus" style="font-size:10.5px;">E-mail pendente de confirmação</small>
+            </div>
+            <button type="button" class="btn-cancelar-edit" onclick="enviarEmailVerificacaoFirebase()" style="font-size:11px; padding:6px 10px;">Verificar</button>
+          </div>
+
+          <div class="secao-box-opcao">
+            <div>
+              <strong style="font-size:12px; display:block;">Alterar Senha de Acesso</strong>
+              <small style="font-size:10.5px;">Receba um link de redefinição no e-mail</small>
+            </div>
+            <button type="button" class="btn-cancelar-edit" onclick="solicitarRedefinicaoSenha()" style="font-size:11px; padding:6px 10px;">Redefinir</button>
+          </div>
+
+          <div class="botoes-acoes-edit" style="margin-top:10px;">
+            <button type="button" class="btn-cancelar-edit" onclick="fecharModalSeguranca()">Cancelar</button>
+            <button type="submit" class="btn-salvar-edit">Guardar Alterações</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: HISTÓRICO RADAR -->
+  <div id="modalHistoricoRadar" class="modal-login">
+    <div class="modal-conteudo modal-radar-quadrado">
+      <div class="cabecalho-modal-radar">
+        <h3>🔍 Ocorrências no Raio de 500m</h3>
+        <button class="perfil-fechar" onclick="fecharModalHistoricoRadar()">×</button>
+      </div>
+      <div class="filtros-historico-radar">
+        <button class="btn-filtro-radar ativo" onclick="filtrarHistoricoRadar('todos', this)">Todos</button>
+        <button class="btn-filtro-radar" onclick="filtrarHistoricoRadar('roubo', this)">Roubo</button>
+        <button class="btn-filtro-radar" onclick="filtrarHistoricoRadar('luz', this)">Falta de Luz</button>
+        <button class="btn-filtro-radar" onclick="filtrarHistoricoRadar('alagamento', this)">Alagamento</button>
+      </div>
+      <div id="listaAlertasRadarArea" class="container-cards-radar-area"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: GRAVAÇÃO IA -->
+  <div id="modalVozIA" class="card-status-voz-ia" style="display: none;">
+    <div class="conteudo-voz-ia">
+      <div id="iconeVozIA" class="mic-icone-animado">🎙️</div>
+      <div class="info-voz-ia">
+        <h4 id="tituloVozIA">Escutando seu relato...</h4>
+        <p id="subtituloVozIA">Fale o tipo de incidente e OBRIGATORIAMENTE o bairro/local.</p>
+      </div>
+      <button id="btnAcaoVozIA" class="btn-parar-gravacao" onclick="pararGravacaoVozIA()">⏹️ Finalizar</button>
+    </div>
+    <div id="caixaAnaliseLive" style="display: none; margin-top: 10px; padding: 10px; background: #1e293b; border-radius: 8px; font-size: 12px; color: #38bdf8;">
+      <span id="textoAnaliseLive">Iniciando análise com Gemini IA...</span>
+    </div>
+  </div>
+
+  <!-- MODAL: AMPLIAR IMAGEM -->
+  <div id="modal-imagem-global" onclick="this.style.display='none'">
+    <img id="imagem-ampliada-conteudo" src="" alt="Imagem Ampliada">
+  </div>
+
+  <!-- SCRIPTS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+
+  <script src="gemini-config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

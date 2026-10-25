@@ -19,7 +19,7 @@ const auth = firebase.auth();
 // 2. VARIÁVEIS GERAIS E MAPA
 // ===================================================
 let filtroTipoAtual = "todos"; 
-let alertas = [];
+let alertas = (window.ALERTAS_DEMO || []).map(alerta => ({ ...alerta, ficticio: true }));
 let marcadores = [];
 let radarAtivo = false;
 let idRastreio = null;
@@ -259,9 +259,11 @@ function gerarHTMLPopupAlerta(alerta) {
         <span class="popup-tag-prioridade ${severidade}">${severidade}</span>
       </div>
       <div class="popup-alerta-corpo">
-        <div class="popup-alerta-tipo">🚨 ${escaparHTML(alerta.tipo)}</div>
+        <div class="popup-alerta-tipo">🚨 ${escaparHTML(alerta.tipo)} ${alerta.ficticio ? '<span class="badge-demo">[DEMO]</span>' : ''}</div>
+        ${alerta.titulo ? `<strong class="popup-alerta-titulo">${escaparHTML(alerta.titulo)}</strong>` : ''}
         <p class="popup-alerta-desc">${escaparHTML(alerta.descricao)}</p>
         <small class="popup-alerta-bairro">📍 ${escaparHTML(alerta.bairro)} • ${formatarDataHora(alerta.data)}</small>
+        ${alerta.ficticio ? '' : `<button type="button" class="btn-denunciar" data-alerta-id="${escaparHTML(alerta.id)}" onclick="event.stopPropagation(); denunciarAlerta(this.dataset.alertaId)">🚩 Denunciar trote</button>`}
       </div>
     </div>
   `;
@@ -360,15 +362,31 @@ function gerarMapaDeCalorDinamico() {
 // ===================================================
 // 3. RECUPERAÇÃO REALTIME E RENDERING DOS CARDS
 // ===================================================
+atualizarInterfaceVisívelComFiltro();
+
+function obterTimestampAlerta(data) {
+  if (data && typeof data.toDate === 'function') return data.toDate().getTime();
+  const timestamp = new Date(data).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
 db.collection("alertas").orderBy("data", "desc").onSnapshot((querySnapshot) => {
   let novosAlertas = [];
   querySnapshot.forEach((doc) => { 
-    novosAlertas.push(doc.data()); 
+    novosAlertas.push({ ...doc.data(), id: doc.id, ficticio: false });
   });
 
-  alertas = novosAlertas;
+  alertas = [
+    ...novosAlertas,
+    ...(window.ALERTAS_DEMO || []).map(alerta => ({ ...alerta, ficticio: true }))
+  ].sort((a, b) => obterTimestampAlerta(b.data) - obterTimestampAlerta(a.data));
   primeiraCargaDB = false;
   atualizarInterfaceVisívelComFiltro();
+}, (error) => {
+  console.error("Erro ao carregar alertas do Firestore:", error);
+  alertas = (window.ALERTAS_DEMO || []).map(alerta => ({ ...alerta, ficticio: true }));
+  atualizarInterfaceVisívelComFiltro();
+  showToast("Não foi possível carregar os alertas reais. Exibindo apenas dados de demonstração.", "error", 5000);
 });
 
 function atualizarInterfaceVisívelComFiltro() {
@@ -399,6 +417,7 @@ function atualizarInterfaceVisívelComFiltro() {
         const fallbackFoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
         const autorFoto = ehAnonimo ? fallbackFoto : (alerta.autorFoto || fallbackFoto);
         const verificado = alerta.autorVerificado === true;
+        const badgeDemo = alerta.ficticio ? '<span class="badge-demo">[DEMO]</span>' : '';
 
         let cssClass = '';
         if(alerta.tipo.includes('Roubo')) cssClass = 'alerta-roubo';
@@ -444,13 +463,15 @@ function atualizarInterfaceVisívelComFiltro() {
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <div class="coluna-texto-alerta">
               <div class="alerta-header">
-                <span class="alerta-titulo-tipo">🚨 ${tipo}</span>
+                <span class="alerta-titulo-tipo">🚨 ${tipo} ${badgeDemo}</span>
                 <span class="alerta-bairro">📍 ${bairro}</span>
               </div>
+              ${alerta.titulo ? `<strong class="alerta-titulo-demo">${escaparHTML(alerta.titulo)}</strong>` : ''}
               <div class="alerta-corpo">${descricao}</div>
             </div>
             ${htmlImagemDireita}
           </div>
+          ${alerta.ficticio ? '' : `<button type="button" class="btn-denunciar" data-alerta-id="${escaparHTML(alerta.id)}" onclick="event.stopPropagation(); denunciarAlerta(this.dataset.alertaId)">🚩 Denunciar trote</button>`}
         </div>`;
       });
     }
@@ -476,6 +497,36 @@ function atualizarInterfaceVisívelComFiltro() {
   gerarMapaDeCalorDinamico(); 
   renderizarCarrosselComunitario(); 
 }
+
+window.denunciarAlerta = async function (alertaId) {
+  const alerta = alertas.find(item => item.id === alertaId);
+  if (!alerta || alerta.ficticio) {
+    showToast("Não é possível denunciar um alerta de demonstração.", "error");
+    return;
+  }
+
+  const usuario = auth.currentUser;
+  if (!usuario) {
+    showToast("Entre na sua conta para denunciar um alerta.", "error", 4000);
+    abrirModalLogin();
+    return;
+  }
+
+  if (!window.confirm("Deseja denunciar este alerta por conteúdo impróprio ou suspeita de trote?")) return;
+
+  const denunciaId = `${alertaId}_${usuario.uid}`;
+  try {
+    await db.collection("denuncias").doc(denunciaId).set({
+      alertaId,
+      denuncianteUid: usuario.uid,
+      data: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showToast("Obrigado! Sua denúncia foi registrada para análise.", "success", 4000);
+  } catch (error) {
+    console.error("Erro ao registrar denúncia:", error);
+    showToast("Não foi possível registrar a denúncia. Talvez você já tenha denunciado este alerta.", "error", 5000);
+  }
+};
 
 function filtrarAlertasPorTipo(tipo, botaoClicado) {
   filtroTipoAtual = tipo;

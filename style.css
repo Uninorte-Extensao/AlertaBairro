@@ -663,6 +663,10 @@ body.modo-escuro #mapa .leaflet-tile-pane {
 
 .alerta-bairro { color: #64748B !important; font-weight: 600; font-size: 10px; }
 .alerta-corpo { font-size: 12px; color: #334155 !important; line-height: 1.4; }
+.alerta-titulo-demo { font-size: 11px; margin: 2px 0; color: #334155; }
+.badge-demo { display: inline-block; padding: 2px 5px; border-radius: 5px; background: #fef3c7; color: #92400e; font-size: 9px; font-weight: 800; vertical-align: middle; }
+.btn-denunciar { align-self: flex-start; padding: 6px 9px; border: 1px solid #fecaca; border-radius: 7px; background: #fff; color: #b91c1c; font-size: 11px; font-weight: 700; cursor: pointer; }
+.btn-denunciar:hover { background: #fef2f2; }
 
 /* MODAIS QUADRADAS */
 .modal-radar-quadrado {
@@ -962,6 +966,7 @@ body.modo-escuro #mapa .leaflet-tile-pane {
 
 .popup-alerta-tipo { font-size: 13px; font-weight: 800; color: #D9383A; }
 .popup-alerta-desc { font-size: 12px; line-height: 1.35; margin-top: 2px; color: #334155; }
+.popup-alerta-titulo { font-size: 12px; }
 .popup-alerta-bairro { font-size: 10.5px; color: #64748B; display: block; margin-top: 4px; }
 
 .popup-novo-alerta-card {
@@ -1163,6 +1168,10 @@ body.modo-escuro .leaflet-popup-tip { background: #0B0F19 !important; }
 body.modo-escuro .popup-autor-detalhes strong { color: #F8FAFC; }
 body.modo-escuro .popup-alerta-desc { color: #E2E8F0; }
 body.modo-escuro .popup-alerta-bairro { color: #94A3B8; }
+body.modo-escuro .alerta-titulo-demo { color: #E2E8F0; }
+body.modo-escuro .badge-demo { background: #78350f; color: #fef3c7; }
+body.modo-escuro .btn-denunciar { background: #3f1d24; border-color: #7f1d1d; color: #fecaca; }
+body.modo-escuro .btn-denunciar:hover { background: #5f2027; }
 body.modo-escuro .popup-novo-alerta-card { background: #0B0F19; color: #F8FAFC; }
 body.modo-escuro .popup-na-cabecalho { border-bottom-color: #1E293B; }
 body.modo-escuro .input-popup-na { background: #131C2E; border-color: #1E293B; color: #FFFFFF; }

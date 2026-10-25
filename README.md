@@ -19,6 +19,10 @@ Este projeto foi construído focando em performance, sem a dependência de frame
 *   Inteligência Artificial: Google Gemini API (LLM para NLP)
 *   DevOps: GitHub Actions (CI/CD Pipeline)
 
+## Demonstração e denúncias
+
+O mapa carrega 15 alertas fictícios de Manaus definidos em `dados-demo.js`, identificados como `[DEMO]` e mantidos apenas no navegador. Eles não são gravados no Firestore. Denúncias de alertas reais exigem autenticação e são registradas uma vez por usuário na coleção `denuncias`; publique as regras atualizadas de `firestore.rules` no Firebase para habilitar a gravação.
+
 ## Configuração local do Gemini
 
 O repositório carrega `gemini-config.example.js` por padrão, sem uma chave real. Para testar a integração localmente, copie esse arquivo para `gemini-config.js` (já ignorado pelo Git), adicione sua chave e altere localmente a referência no `index.html` para `gemini-config.js`. Não inclua a chave em commits.

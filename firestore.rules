@@ -13,5 +13,16 @@ service cloud.firestore {
       allow read, create, update: if request.auth != null
         && request.auth.uid == userId;
     }
+
+    match /denuncias/{denunciaId} {
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasAll(['alertaId', 'denuncianteUid', 'data'])
+        && request.resource.data.keys().hasOnly(['alertaId', 'denuncianteUid', 'data'])
+        && request.resource.data.alertaId is string
+        && request.resource.data.denuncianteUid == request.auth.uid
+        && denunciaId == request.resource.data.alertaId + '_' + request.auth.uid
+        && exists(/databases/$(database)/documents/alertas/$(request.resource.data.alertaId))
+        && get(/databases/$(database)/documents/alertas/$(request.resource.data.alertaId)).data.uidUsuario is string;
+    }
   }
 }

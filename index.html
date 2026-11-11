@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Alerta Bairro - Manaus</title>
+  <title>Alerta Bairro</title>
   
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -12,17 +12,19 @@
 <body>
 
   <!-- CABEÇALHO -->
-  <header>
-    <div style="display: flex; align-items: center;">
-      <h1 style="cursor: pointer;" onclick="mostrarPagina('inicio')">🚨 Alerta Bairro</h1>
+  <header class="navbar-header">
+    <div class="nav-logo" onclick="mostrarPagina('inicio')">
+      <span class="logo-icon">🚨</span>
+      <h1 class="logo-text">Alerta Bairro</h1>
     </div>
-    <nav>
-      <button id="btnNavInicio" onclick="mostrarPagina('inicio')">Início</button>
-      <button id="btnNavMapa" onclick="mostrarPagina('mapaPagina')">Mapa ao Vivo</button>
-      <button id="btnNavLogin" onclick="abrirModalLogin()">Entrar</button>
+    <nav class="nav-links">
+      <button id="btnNavInicio" class="nav-btn" onclick="mostrarPagina('inicio')">Início</button>
+      <button id="btnNavMapa" class="nav-btn" onclick="mostrarPagina('mapaPagina')">Mapa ao Vivo</button>
+      <button id="btnNavLogin" class="nav-btn" onclick="abrirModalLogin()">Entrar</button>
       <button id="btnNavPerfil" onclick="toggleMenuPerfil(event)" class="btn-nav-perfil-avatar" style="display: none;">
         <img id="navPerfilFoto" class="avatar-nav-top" src="" alt="Perfil">
-        <span>Meu Perfil</span> ▾
+        <span class="perfil-text">Meu Perfil</span>
+        <span class="perfil-seta" aria-hidden="true">▾</span>
       </button>
     </nav>
   </header>

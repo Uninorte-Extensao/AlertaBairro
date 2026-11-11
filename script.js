@@ -668,7 +668,7 @@ function loginExitosa() {
   const btnLogin = document.getElementById('btnNavLogin');
   const btnPerfil = document.getElementById('btnNavPerfil');
   if (btnLogin) btnLogin.style.display = 'none';
-  if (btnPerfil) btnPerfil.style.display = 'block';
+  if (btnPerfil) btnPerfil.style.display = 'flex';
   
   const user = auth.currentUser;
   if (user) { 
@@ -723,7 +723,18 @@ function fecharModalLogin() {
   setTimeout(() => { m.style.display = 'none'; }, 220);
 }
 
-function toggleMenuPerfil(e) { e.stopPropagation(); const m = document.getElementById('menuFlutuantePerfil'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; }
+function toggleMenuPerfil(e) {
+  e.stopPropagation();
+
+  if (typeof mapa !== 'undefined' && mapa) {
+    mapa.closePopup();
+    ultimoPopup = null;
+  }
+
+  const menuPerfil = document.getElementById('menuFlutuantePerfil');
+  if (!menuPerfil) return;
+  menuPerfil.style.display = menuPerfil.style.display === 'block' ? 'none' : 'block';
+}
 
 // ===================================================
 // 6. SONAR / GEOLOCALIZAÇÃO
